@@ -45,6 +45,11 @@ protege, e o que não protege).
 | [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Modelo de ameaças completo (SO, hardware, supply chain, dado enviesado, computação quântica, etc.) |
 | [`docs/AUDIT.md`](docs/AUDIT.md) | Guia de auditoria: hashes, ordem de leitura, invariantes e onde cada um é testado |
 | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Como operar com segurança, passo a passo, incluindo a nota sobre passphrase BIP-39 |
+| [`docs/GENERATION_CEREMONY.md`](docs/GENERATION_CEREMONY.md) | Os 15 passos da cerimônia de geração offline, do boot ao desligamento |
+| [`docs/RELEASE_SECURITY_CHECKLIST.md`](docs/RELEASE_SECURITY_CHECKLIST.md) | Checklist rápido pré-geração (sem exibir nenhum segredo) |
+| [`docs/REDTEAM.md`](docs/REDTEAM.md) | Auditoria adversarial (red team): o que foi atacado, o que quebrou, o que foi corrigido |
+| [`docs/INDEPENDENT_VERIFIER.md`](docs/INDEPENDENT_VERIFIER.md) | Verificação de segunda ordem: um verificador separado que não confia no EntropyForge nem em si mesmo sem se testar |
+| [`docs/FINAL_SECURITY_REVIEW.md`](docs/FINAL_SECURITY_REVIEW.md) | Revisão de segurança final antes de considerar o projeto candidato a uso real |
 
 ## O que este programa garante (e o que não garante)
 

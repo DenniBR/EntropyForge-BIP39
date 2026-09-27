@@ -77,7 +77,7 @@ independent-verifier/
 │   ├── sandbox.py          # execução isolada via unshare --net (Fase 12)
 │   ├── divergence.py       # protocolo de investigação de divergência (Fase 15)
 │   └── trust_chain.py      # análise da raiz de confiança (Fase 16)
-└── tests/                  # 106 testes, um arquivo por módulo acima
+└── tests/                  # 112 testes (apos a Fase D), um arquivo por modulo acima
 ```
 
 Material de ataque e laboratórios ficam em `redteam/independent/`:
@@ -457,10 +457,10 @@ Para um usuário que queira o nível de confiança mais alto praticável:
 ## 15. Como reproduzir esta auditoria
 
 ```bash
-# 1. Rodar a suíte completa do EntropyForge (182 testes)
+# 1. Rodar a suíte completa do EntropyForge (191 testes apos a Fase D)
 python3 -B -m unittest discover -s tests -v
 
-# 2. Rodar a suíte completa do independent-verifier (106 testes)
+# 2. Rodar a suíte completa do independent-verifier (112 testes apos a Fase D)
 cd independent-verifier && python3 -B -m unittest discover -s tests -v && cd ..
 
 # 3. Reproduzir o laboratório de backdoors (Fase 6-7)

@@ -6,7 +6,7 @@ do que consegue ler e executar.
 
 ## 1. Tamanho e escopo
 
-`entropyforge/*.py` soma **2.403 linhas** (contadas com `wc -l`, incluindo
+`entropyforge/*.py` soma **2.449 linhas** (contadas com `wc -l`, incluindo
 comentários e docstrings — que são deliberadamente extensos, para que o
 código explique seu próprio raciocínio matemático inline). Isto é maior
 que a meta informal de ~1.500 linhas do rascunho inicial do design; o
@@ -16,20 +16,23 @@ sem SciPy (`specialfunc.py`), e de uma abstração de E/S (`cli.py`) que
 permite testar o fluxo `generate` de ponta a ponta sem TTY real. Ainda é
 pequeno o suficiente para ser lido por completo em algumas horas.
 
-`tests/*.py` soma bem mais que isso (172 testes) — não precisa ser
+`tests/*.py` soma bem mais que isso (191 testes) — não precisa ser
 auditado com o mesmo rigor que o código de produto, mas é o que dá
-confiança de que o código de produto faz o que diz.
+confiança de que o código de produto faz o que diz. Um projeto irmão,
+`independent-verifier/` (112 testes próprios, ver
+`docs/INDEPENDENT_VERIFIER.md`), verifica boa parte disso de forma
+independente, sem reusar nenhum código deste pacote.
 
 ## 2. Hashes dos arquivos críticos (nesta revisão)
 
 ```
 2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda  entropyforge/data/english.txt
 3c4340b0a648fd94de77376f89c76b0aedf5d185cae6a6b3772bf87d565d5a74  entropyforge/__init__.py
-0f53dcdea7c174ed723f5d8717dab074f472fe8604b3df8f35f46960f17e5aaf  entropyforge/__main__.py
+7c61107528434a2f9769c0156ca8c40a3aa722bf68887583069e4cf66da57900  entropyforge/__main__.py
 6955bc7646f9f7ba85a7ee39c1930c45aba17df435db68f1e3df29fa739d3ba0  entropyforge/bip39.py
-fa8634f093609f67181407923bd9d079ac598ac1601fa01e02f91eb7c9a975a0  entropyforge/cli.py
+5cdb20e41171645226170f0a1cdda4f21c753c503b8f6edb9a3cd98a51dd2e45  entropyforge/cli.py
 5dbd17ff1a3f1d6ffe9cc5c1e41497efe74dbfe156b6567175b9a79dce3ac6bb  entropyforge/combine.py
-85a91c57091b455d4a2eb31635e8c1d1df21b43bdf1ec4d3f106629e3ecd789c  entropyforge/dice.py
+64434186558e57261d45a1e6ce0e25a6afc3af6d1c55b646b123aefcca799009  entropyforge/dice.py
 3d9e8303456ebbaf9b672d48a3b7c28bbea6a7e075386f596866c1606edbf9cb  entropyforge/entropy_calc.py
 1ba12516ce568f5c21b5a48be8d07cfce26d4e79275978abe6a6c296dc995f97  entropyforge/guard.py
 5a5641e3715da99f30c2c5c41f56304bbb0bad0cef696224e33c6ffd85b59a73  entropyforge/osrng.py
@@ -39,6 +42,13 @@ fa8634f093609f67181407923bd9d079ac598ac1601fa01e02f91eb7c9a975a0  entropyforge/c
 c77a51f3d31100d4d4a58215a82802436eea3f556b1b9742f54afd6f1df3bc3c  entropyforge/stats.py
 af85bfdcaf6c768f7f5c7da6532527b20d85e73721c94d438bd09fc4da4be2f5  entropyforge/wordlist.py
 ```
+
+(`cli.py`, `__main__.py` e `dice.py` mudaram de hash em relação a
+revisões anteriores deste documento — `cli.py`/`__main__.py` por
+correções de auditoria adversarial anteriores, `dice.py` por uma correção
+de simetria em `decode()` encontrada na revisão de segurança final, ver
+`docs/FINAL_SECURITY_REVIEW.md`. Os hashes acima são os corretos para o
+commit atual.)
 
 Estes hashes valem para o commit atual; `git log -1 --format=%H` no
 repositório diz exatamente qual commit. Não confie neste arquivo sozinho
@@ -88,11 +98,13 @@ acima contra esse arquivo diretamente.
 | 8 | `combine.combine(a,b) == SHA-256(a‖b)` literalmente | `tests/test_combine.py` |
 | 9 | `R ~ Binomial(n-1,1/6)` exatamente (T3) e a distribuição de corridas (T4) batem com enumeração exaustiva | `tests/test_stats.py` |
 | 10 | O relatório público nunca contém p-valores, estatísticas, a sequência bruta ou qualquer hex de A/B/E | `tests/test_report.py`, `tests/test_cli_generate.py` |
-| 11 | O fluxo `generate` completo produz exatamente `BIP39(SHA256(dice.encode(A) ‖ B))`, e NENHUMA saída capturada contém A, B, E ou a sequência bruta em qualquer formato | `tests/test_cli_generate.py` (o teste mais importante do ponto de vista de confidencialidade) |
+| 11 | O fluxo `generate` completo produz exatamente `BIP39(SHA256(dice.encode(A) ‖ B))`, e NENHUMA saída — nem a `TerminalIO` abstrata, nem o stdout/stderr REAIS do processo — contém A, B, E ou a sequência bruta em qualquer formato | `tests/test_cli_generate.py` (o teste mais importante do ponto de vista de confidencialidade; a checagem de stdout/stderr reais foi adicionada na revisão de segurança final, `docs/FINAL_SECURITY_REVIEW.md`, após um backdoor de laboratório que escrevia direto em `sys.stdout` escapar da checagem anterior) |
 | 12 | Falha do CSPRNG do SO nunca cai para uma fonte alternativa | `tests/test_osrng.py` |
 | 13 | Recusa rodar `generate` com interface de rede ativa, a menos que o operador confirme explicitamente com uma frase digitada | `tests/test_cli_generate.py::NetworkCheckRefusalTests` |
 | 14 | O build do artefato `.pyz` é byte-a-byte reprodutível | `tests/test_build_reproducible.py`, `make repro` |
 | 15 | Uma falha do CSPRNG ou uma interrupção (Ctrl-C) no meio do fluxo não deixa a sequência de dados em nenhuma saída/exceção capturada | `tests/test_generate_interruption_safety.py` |
+| 16 | `dice.decode` rejeita um prefixo de comprimento `n=0`, simetricamente a `encode`/`validate_rolls`, que rejeitam uma sequência vazia | `tests/test_dice.py::DecodeNegativeTests::test_rejects_zero_length_prefix` |
+| 17 | `tools/preflight_and_generate.py` recusa invocar o `.pyz` se a wordlist, a comparação `.pyz` vs. source, ou o `selftest` falharem | `tests/test_preflight_and_generate.py` |
 
 ## 5. Como rodar tudo você mesmo
 

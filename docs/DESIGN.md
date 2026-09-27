@@ -71,7 +71,7 @@ ambiental — sistema live sem swap, desligar a máquina após o uso.
    Nada vai para disco, rede, clipboard ou log. A, B e E nunca são exibidos.
 ```
 
-### 2.3 Módulos (pacote `entropyforge/`, 2.403 linhas ao todo)
+### 2.3 Módulos (pacote `entropyforge/`, 2.449 linhas ao todo)
 
 | Módulo | Responsabilidade |
 |---|---|
@@ -302,7 +302,7 @@ não sobreviveram à implementação sem ajuste:
    computacional explicada em `docs/MATH.md` §6. Nenhuma conta do projeto
    depende desse número.
 5. **Meta de tamanho de código (~1.500 linhas)** não foi cumprida (o
-   total é 2.403 linhas) — documentado honestamente em `docs/AUDIT.md` em
+   total é 2.449 linhas) — documentado honestamente em `docs/AUDIT.md` em
    vez de mantida como uma afirmação desatualizada.
 6. **Bug de segurança encontrado pelos próprios testes durante o
    desenvolvimento:** a primeira versão de `cli.py` passava a flag de
