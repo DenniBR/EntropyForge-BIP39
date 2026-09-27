@@ -105,6 +105,7 @@ acima contra esse arquivo diretamente.
 | 15 | Uma falha do CSPRNG ou uma interrupção (Ctrl-C) no meio do fluxo não deixa a sequência de dados em nenhuma saída/exceção capturada | `tests/test_generate_interruption_safety.py` |
 | 16 | `dice.decode` rejeita um prefixo de comprimento `n=0`, simetricamente a `encode`/`validate_rolls`, que rejeitam uma sequência vazia | `tests/test_dice.py::DecodeNegativeTests::test_rejects_zero_length_prefix` |
 | 17 | `tools/preflight_and_generate.py` recusa invocar o `.pyz` se a wordlist, a comparação `.pyz` vs. source, ou o `selftest` falharem | `tests/test_preflight_and_generate.py` |
+| 18 | A seed derivada de uma mnemonic deste projeto (`bip39.mnemonic_to_seed`) bate com a implementação `mnemonic` (Trezor), e uma chave mestra BIP-32 derivada dessa seed (via `bip32utils`) bate com uma segunda implementação independente (HMAC-SHA512 cru, biblioteca padrão) — incluindo o vetor de teste oficial da especificação BIP-32 | `tests/test_dev_cross_check_bip32.py` (pulado se `mnemonic`/`bip32utils` não estiverem instalados; NUNCA dependência de runtime); verificação manual com uma carteira externa em `docs/WALLET_IMPORT_TEST.md` |
 
 ## 5. Como rodar tudo você mesmo
 
