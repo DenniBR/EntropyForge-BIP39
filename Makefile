@@ -48,4 +48,4 @@ simulate:
 
 clean:
 	find . -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
-	rm -f entropyforge.pyz SHA256SUMS
+	rm -f entropyforge.pyz SHA256SUMS MANIFEST.txt

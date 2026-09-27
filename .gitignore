@@ -2,5 +2,6 @@ __pycache__/
 *.pyc
 *.pyz
 SHA256SUMS
+MANIFEST.txt
 .pytest_cache/
 *.egg-info/

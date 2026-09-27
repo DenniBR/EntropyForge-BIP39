@@ -50,7 +50,7 @@ protege, e o que não protege).
 | [`docs/WALLET_IMPORT_TEST.md`](docs/WALLET_IMPORT_TEST.md) | Teste manual de importação em uma carteira externa (Sparrow), com uma mnemonic inteiramente fictícia, para confirmar a interoperabilidade BIP-39/BIP-32 |
 | [`docs/RELEASE_SECURITY_CHECKLIST.md`](docs/RELEASE_SECURITY_CHECKLIST.md) | Checklist rápido pré-geração (sem exibir nenhum segredo) |
 | [`docs/REDTEAM.md`](docs/REDTEAM.md) | Auditoria adversarial (red team): o que foi atacado, o que quebrou, o que foi corrigido |
-| [`docs/INDEPENDENT_VERIFIER.md`](docs/INDEPENDENT_VERIFIER.md) | Verificação de segunda ordem: um verificador separado que não confia no EntropyForge nem em si mesmo sem se testar |
+| [`docs/INDEPENDENT_VERIFIER.md`](docs/INDEPENDENT_VERIFIER.md) | Verificação de segunda ordem: um verificador separado que não confia no EntropyForge nem em si mesmo sem se testar; inclui `verify_release.py` (`PASS`/`FAIL` contra um `MANIFEST.txt` de release) |
 | [`docs/FINAL_SECURITY_REVIEW.md`](docs/FINAL_SECURITY_REVIEW.md) | Revisão de segurança final antes de considerar o projeto candidato a uso real |
 
 ## O que este programa garante (e o que não garante)

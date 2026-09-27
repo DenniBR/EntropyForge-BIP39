@@ -76,8 +76,10 @@ independent-verifier/
 │   ├── process_observe.py  # observação via strace (Fase 11)
 │   ├── sandbox.py          # execução isolada via unshare --net (Fase 12)
 │   ├── divergence.py       # protocolo de investigação de divergência (Fase 15)
-│   └── trust_chain.py      # análise da raiz de confiança (Fase 16)
-└── tests/                  # 112 testes (apos a Fase D), um arquivo por modulo acima
+│   ├── trust_chain.py      # análise da raiz de confiança (Fase 16)
+│   └── release_manifest.py # manifesto de release + verify-release (Fase E)
+├── verify_release.py       # CLI: PASS/FAIL contra um MANIFEST.txt (Fase E)
+└── tests/                  # um arquivo por modulo acima
 ```
 
 Material de ataque e laboratórios ficam em `redteam/independent/`:
@@ -115,6 +117,7 @@ físico dos dados, ambiente livre de câmeras/observadores).
 | `sandbox.py` | Comportamento em tempo real, com contenção | `unshare --net` (namespace de rede vazio) + diff de diretório de trabalho | confirma que uma tentativa de rede FALHA mesmo que todo o resto esteja comprometido |
 | `divergence.py` | Metodologia de investigação | reproduz → compara contra especificação oficial → nunca declara "falha" sem referência | uso interno de todos os módulos acima |
 | `trust_chain.py` | A cadeia de confiança em si | enumera 11 elos e classifica cada um (verificável/redutível/substituível/auditável/mensurável/hipótese) | nada — é a documentação estrutural da seção 9 |
+| `release_manifest.py` + `verify_release.py` | Um release completo, de ponta a ponta | recalcula do zero cada campo de um `MANIFEST.txt` (versões, wordlist, manifesto de source, `.pyz`, script de build, o próprio verificador) e roda `wordlist_check`/`pyz_inspect`/`bip39_compare`; imprime só `PASS`/`FAIL` | qualquer divergência entre o manifesto publicado e os arquivos reais — só tem valor se o manifesto vier de um canal independente do artefato (seção 6) |
 
 ## 4. Laboratório de backdoors — o que `selftest` detecta e o que não detecta
 
@@ -484,6 +487,14 @@ r = check_wordlist_file(Path('entropyforge/data/english.txt'))
 print('ok:', r.ok, 'sha256:', r.sha256)
 print(check_matches_official_hash(r))
 "
+
+# 8. Gerar e conferir o manifesto de release (Fase E) -- imprime PASS/FAIL
+make build
+python3 tools/build_release_manifest.py
+python3 independent-verifier/verify_release.py \
+  --manifest MANIFEST.txt --entropyforge-root entropyforge \
+  --pyz entropyforge.pyz --verifier-root independent-verifier/verifier \
+  --build-script tools/build_pyz.py --vectors tests/vectors/bip39_vectors.json
 ```
 
 Hashes de referência calculados de forma independente pelo verificador,
