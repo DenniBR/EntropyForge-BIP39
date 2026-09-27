@@ -1,19 +1,29 @@
-"""Montagem do relatorio PUBLICO exibido apos a bateria estatistica.
+"""Montagem dos relatorios exibidos apos a bateria estatistica.
 
-"Publico" aqui tem um sentido preciso (requisito 16 e docs/DESIGN.md,
-secao 4.4): o conteudo deste relatorio e limitado deliberadamente para que
-o vazamento de informacao sobre a sequencia de dados A fique dentro do
-orcamento calculado em `entropy_calc.report_leak_bits`. Por isso:
+Tres niveis de detalhe, cada um com seu proprio uso:
 
-  - o modo `generate` (que usa os dados para a carteira de verdade) chama
-    `public_report`, que mostra as 6 contagens de face e um veredito
-    PASS/WARN/FAIL por teste -- NUNCA p-valores, estatisticas, nem a
-    sequencia original;
-  - o modo `calibrate` (dados sempre descartaveis, nunca usados para gerar
-    uma carteira) chama `full_report`, que mostra tudo: estatisticas,
-    p-valores e o limite de confianca de Clopper-Pearson para a face mais
-    provavel do dado. Isso e seguro porque os dados de calibracao nunca
-    alimentam `combine.combine`.
+  - `full_report` -- usado pelo modo `calibrate` (dados sempre
+    descartaveis, nunca usados para gerar uma carteira): mostra tudo,
+    estatisticas, p-valores, e o limite de confianca de Clopper-Pearson
+    para a face mais provavel do dado. Seguro porque os dados de
+    calibracao nunca alimentam `combine.combine`.
+
+  - `public_report` -- o relatorio "reduzido" original (requisito 16 e
+    docs/DESIGN.md secao 4.4): mostra as 6 contagens de face e um
+    veredito PASS/WARN/FAIL por teste, nunca p-valores nem a sequencia
+    original. Mantido e testado por completude e para uso programatico,
+    mas o fluxo `generate` NAO o usa mais desde a Fase E (ver abaixo).
+
+  - `minimal_report` -- o que o modo `generate` efetivamente usa desde a
+    Fase E (procedimento de geracao v2, `entropyforge/version.py`): so a
+    decisao binaria ACCEPTED/REJECTED, sem NENHUMA contagem de face ou
+    veredito por teste. Isto reduz o vazamento de informacao sobre A
+    ainda mais abaixo do orcamento ja conservador de
+    `entropy_calc.report_leak_bits` -- esse orcamento continua sendo
+    usado, SEM alteracao, para calcular o numero operacional de
+    lancamentos (`rolls_operational`), entao o numero recomendado
+    permanece uma margem de seguranca conservadora (o vazamento real
+    hoje e MENOR do que o orcamentado, nunca maior).
 """
 
 from __future__ import annotations
@@ -172,3 +182,31 @@ def format_full_report(r: FullReport) -> str:
         "combine.combine nem bip39.entropy_to_mnemonic)."
     )
     return "\n".join(lines)
+
+
+@dataclass(frozen=True)
+class MinimalReport:
+    decision: str  # "ACCEPTED" ou "REJECTED" -- nunca outro valor
+
+
+def minimal_report(battery: BatteryResult) -> MinimalReport:
+    """Relatorio MINIMO usado pelo fluxo `generate` desde a Fase E
+    (procedimento de geracao v2): reduz a bateria estatistica inteira a
+    uma unica decisao binaria, sem revelar contagens de face nem veredito
+    por teste. `WARN` (aviso informativo, nao uma rejeicao formal de H0)
+    e tratado como ACCEPTED, exatamente como o fluxo `generate` ja tratava
+    antes -- so um veredito geral FAIL (apos a correcao de Holm) rejeita.
+    """
+    decision = "REJECTED" if battery.overall_verdict == Verdict.FAIL else "ACCEPTED"
+    return MinimalReport(decision=decision)
+
+
+def format_minimal_report(r: MinimalReport) -> str:
+    return (
+        "=== Validacao estatistica da fonte A ===\n"
+        f"resultado: {r.decision}\n"
+        "(nenhuma contagem de face ou estatistica detalhada e exibida "
+        "durante geracao real, para minimizar a informacao revelada sobre "
+        "a sequencia de dados -- use `calibrate`, com dados descartaveis, "
+        "para ver o relatorio estatistico completo)"
+    )

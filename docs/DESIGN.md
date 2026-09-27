@@ -114,11 +114,17 @@ arquivo redirecionado.
 4. Exige TTY real em stdin e stdout; aborta caso contrário.
 5. Calcula e mostra o orçamento de entropia (`entropy_calc.compute_budget`)
    — números sempre recalculados, nunca uma constante fixa no código.
-6. Lê a sequência de dados em uma única linha oculta (sem eco); repete até
+6. Lê a sequência de dados em uma única linha oculta (sem eco); aceita o
+   formato compacto (`"416235"`) OU separado por espaços (`"4 1 6 2 3
+   5"`), nunca uma mistura dos dois (`dice.normalize_dice_input`, Fase E,
+   procedimento de geração v2 — ver `entropyforge/version.py`); repete até
    receber exatamente o número de lançamentos pedido, todos em `1-6`.
-7. Roda a bateria estatística e mostra o relatório **público** (contagens
-   de face + vereditos, nunca p-valores nem a sequência). Se o veredito
-   geral for FAIL, exige confirmação explícita para continuar.
+7. Roda a bateria estatística e mostra somente a decisão binária
+   **ACCEPTED/REJECTED** (`report.minimal_report`, desde a Fase E) —
+   nenhuma contagem de face nem veredito por teste é exibida durante uma
+   geração real (isso permanece disponível só em `calibrate`, com dados
+   sempre descartáveis, via `report.full_report`). Se o veredito geral for
+   FAIL (REJECTED), exige confirmação explícita para continuar.
 8. Lê B (`os.getrandom(32)`); se falhar, aborta de forma limpa (sem
    fallback, sem traceback cru).
 9. `E = combine(A, B)`, `mnemonic = bip39.entropy_to_mnemonic(E)`.

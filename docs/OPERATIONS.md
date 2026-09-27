@@ -81,13 +81,18 @@ O programa vai:
 2. Rodar os auto-testes de novo.
 3. Mostrar quantos lançamentos ele recomenda (calculado na hora, não um
    número fixo) e pedir esse tanto de lançamentos do seu d6.
-4. Você digita os resultados (1–6), sem espaços; a digitação **não
-   aparece na tela**.
-5. Ele roda a bateria estatística e mostra um relatório **público** (sem
-   revelar a sequência) — contagens de face e vereditos PASS/WARN/FAIL. Se
-   o veredito geral for FAIL, ele avisa e pede uma confirmação explícita
-   para continuar mesmo assim (não recomendado — prefira recomeçar com
-   outro dado).
+4. Você digita os resultados (1–6): pode colar tudo junto, sem espaços
+   (`416235`), ou separado por espaços (`4 1 6 2 3 5`) — nunca misture os
+   dois formatos na mesma entrada. A digitação **não aparece na tela**.
+5. Ele roda a bateria estatística e mostra somente **ACCEPTED** ou
+   **REJECTED** — nenhuma contagem de face nem veredito por teste é
+   exibida durante uma geração real (isso minimiza ainda mais a
+   informação revelada sobre a sequência; o relatório estatístico
+   completo, com contagens e vereditos PASS/WARN/FAIL por teste, continua
+   disponível só no modo `calibrate`, com dados sempre descartáveis). Se o
+   resultado for REJECTED, ele avisa e pede uma confirmação explícita para
+   continuar mesmo assim (não recomendado — prefira recomeçar com outro
+   dado).
 6. Ele lê 256 bits do gerador do sistema operacional.
 7. Ele combina as duas fontes e calcula o mnemonic.
 8. A tela muda para uma tela alternativa do terminal (isso evita que o

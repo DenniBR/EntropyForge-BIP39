@@ -21,7 +21,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Callable
 
-from . import bip39, combine, dice, entropy_calc, guard, osrng, report, selftest, stats
+from . import bip39, combine, dice, entropy_calc, guard, osrng, report, selftest, stats, version
 
 ALT_SCREEN_ENTER = "\x1b[?1049h"
 ALT_SCREEN_LEAVE = "\x1b[?1049l"
@@ -98,6 +98,8 @@ def _validate_rolls_arg(value: int | None) -> str | None:
 
 
 def cmd_selftest(args: argparse.Namespace, io: TerminalIO) -> int:
+    io.write(version.current().format())
+    io.write("")
     result = selftest.run_selftest()
     io.write(result.format())
     return 0 if result.all_passed else 1
@@ -161,20 +163,22 @@ def _read_digits_visible(io: TerminalIO, target_n: int) -> str:
     sempre descartados (nunca alimentam `combine`/`bip39`)."""
     collected = ""
     io.write(
-        f"Digite os lancamentos (digitos 1-6, sem separadores). Meta: "
-        f"{target_n} lancamentos. Pode digitar em varias linhas."
+        f"Digite os lancamentos (digitos 1-6, compacto ou separado por "
+        f"espacos -- nunca misture os dois formatos). Meta: {target_n} "
+        "lancamentos. Pode digitar em varias linhas."
     )
     while len(collected) < target_n:
         remaining = target_n - len(collected)
-        chunk = io.read_line(f"[{len(collected)}/{target_n}] proximos digitos: ").strip()
-        if not chunk:
+        chunk = io.read_line(f"[{len(collected)}/{target_n}] proximos digitos: ")
+        if not chunk.strip():
             continue
         try:
-            dice.validate_rolls(chunk)
+            normalized = dice.normalize_dice_input(chunk)
+            dice.validate_rolls(normalized)
         except dice.DiceInputError as exc:
             io.warn(str(exc))
             continue
-        collected += chunk[:remaining]
+        collected += normalized[:remaining]
     return collected
 
 
@@ -252,26 +256,30 @@ def _read_dice_hidden(io: TerminalIO, target_n: int) -> str:
     """Le a sequencia de `target_n` lancamentos em UMA linha oculta (sem
     eco). O usuario pode usar backspace normalmente antes de dar Enter
     (isso e apenas a edicao de linha do proprio terminal; o texto nunca e
-    ecoado na tela). Repete ate receber exatamente `target_n` digitos
-    validos.
+    ecoado na tela). Aceita o formato compacto ("416235") OU separado por
+    espacos ("4 1 6 2 3 5"), nunca uma mistura dos dois (ver
+    `dice.normalize_dice_input`). Repete ate receber exatamente `target_n`
+    digitos validos.
     """
     while True:
         raw = io.read_hidden_line(
-            f"Digite os {target_n} lancamentos do dado (1-6, sem espacos), "
+            f"Digite os {target_n} lancamentos do dado (1-6, colados ou "
+            "separados por espacos, nunca os dois formatos juntos), "
             "seguido de Enter (a digitacao NAO aparece na tela): "
         )
         try:
-            dice.validate_rolls(raw)
+            normalized = dice.normalize_dice_input(raw)
+            dice.validate_rolls(normalized)
         except dice.DiceInputError as exc:
             io.warn(f"entrada invalida ({exc}); tente novamente.")
             continue
-        if len(raw) != target_n:
+        if len(normalized) != target_n:
             io.warn(
                 f"esperado exatamente {target_n} lancamentos, recebido "
-                f"{len(raw)}; tente novamente."
+                f"{len(normalized)}; tente novamente."
             )
             continue
-        return raw
+        return normalized
 
 
 def _zero(buf: bytearray) -> None:
@@ -344,13 +352,13 @@ def cmd_generate(args: argparse.Namespace, io: TerminalIO) -> int:
         del digits
         return 7
 
-    public = report.public_report(battery)
-    io.write("\n" + report.format_public_report(public))
+    minimal = report.minimal_report(battery)
+    io.write("\n" + report.format_minimal_report(minimal))
 
     if battery.overall_verdict == stats.Verdict.FAIL:
         io.warn(
             "a bateria estatistica REJEITOU a hipotese de uniformidade/"
-            "independencia para esta sequencia (ver veredito acima). Isto "
+            "independencia para esta sequencia (resultado: REJECTED). Isto "
             "pode indicar um dado viciado, uma tecnica de lancamento "
             "problematica, ou um erro de digitacao. O recomendado e "
             "recomecar com um dado diferente."
@@ -434,6 +442,16 @@ def cmd_generate(args: argparse.Namespace, io: TerminalIO) -> int:
 # ---------------------------------------------------------------------------
 
 
+class _PrintVersionAndExit(argparse.Action):
+    """Como `action="version"`, mas imprime as linhas exatamente como
+    formatadas (o `action="version"` embutido do argparse rejunta o texto
+    em um paragrafo, destruindo a formatacao de `VersionInfo.format()`)."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        print(version.current().format())
+        parser.exit()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="entropyforge",
@@ -443,6 +461,12 @@ def build_parser() -> argparse.ArgumentParser:
             "sistema operacional. Ver docs/DESIGN.md, docs/MATH.md e "
             "docs/THREAT_MODEL.md."
         ),
+    )
+    parser.add_argument(
+        "--version",
+        action=_PrintVersionAndExit,
+        nargs=0,
+        help="mostra a versao do software, do formato A, do procedimento de geracao e da wordlist, e sai",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

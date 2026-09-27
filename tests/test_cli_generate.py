@@ -159,6 +159,23 @@ class SuccessfulGenerateTests(unittest.TestCase):
         rc, _ = self._run()
         self.assertEqual(rc, 0)
 
+    def test_report_is_minimal_accepted_without_face_counts_or_per_test_verdicts(self):
+        # Fase E, requisito 6/procedimento de geracao v2: `generate` deve
+        # mostrar SOMENTE a decisao ACCEPTED/REJECTED, nunca contagens de
+        # face nem o veredito individual de cada teste da bateria (isso
+        # continua disponivel apenas em `calibrate`, via `full_report`).
+        rc, io_builder = self._run()
+        blob = io_builder.blob
+        self.assertIn("ACCEPTED", blob)
+        self.assertNotIn("REJECTED", blob)
+        for leaky_token in (
+            "contagens das faces",
+            "face_frequency",
+            "serial_difference",
+            "autocorrelation_lag",
+        ):
+            self.assertNotIn(leaky_token, blob)
+
     def test_mnemonic_words_match_expected_and_order(self):
         rc, io_builder = self._run()
         words = _extract_mnemonic_block(io_builder.blob)
@@ -284,6 +301,7 @@ class StatisticalFailureOverrideTests(unittest.TestCase):
         rc = cmd_generate(args, io)
         self.assertNotEqual(rc, 0)
         self.assertNotIn("SEU MNEMONIC", io_builder.blob)
+        self.assertIn("REJECTED", io_builder.blob)
 
     def test_proceeds_with_explicit_override(self):
         budget = entropy_calc.compute_budget()
@@ -298,6 +316,7 @@ class StatisticalFailureOverrideTests(unittest.TestCase):
         args = build_parser().parse_args(["generate", "--override-offline-check"])
         rc = cmd_generate(args, io)
         self.assertEqual(rc, 0)
+        self.assertIn("REJECTED", io_builder.blob)
         expected_mnemonic = bip39.entropy_to_mnemonic(combine.combine(dice.encode(digits), b))
         words = _extract_mnemonic_block(io_builder.blob)
         self.assertEqual(words, expected_mnemonic.split())
@@ -333,6 +352,102 @@ class RollsArgumentValidationTests(unittest.TestCase):
 
     def test_validator_rejects_above_structural_limit(self):
         self.assertIsNotNone(_validate_rolls_arg(dice.MAX_ROLLS + 1))
+
+
+class FlexibleDiceInputNormalizationTests(unittest.TestCase):
+    """Fase E, requisito 6: `normalize_dice_input` aceita compacto e
+    separado por espacos, mas rejeita qualquer ambiguidade em vez de
+    adivinhar a intencao do operador."""
+
+    def test_compact_input_passes_through_unchanged(self):
+        self.assertEqual(dice.normalize_dice_input("416235"), "416235")
+
+    def test_space_separated_input_is_joined(self):
+        self.assertEqual(dice.normalize_dice_input("4 1 6 2 3 5"), "416235")
+
+    def test_space_separated_input_tolerates_extra_whitespace_and_newlines(self):
+        self.assertEqual(dice.normalize_dice_input("  4   1\n6\t2 3 5  "), "416235")
+
+    def test_mixed_format_is_rejected_as_ambiguous(self):
+        with self.assertRaises(dice.DiceInputError):
+            dice.normalize_dice_input("41 6235")
+
+    def test_multi_digit_token_is_rejected_as_ambiguous(self):
+        with self.assertRaises(dice.DiceInputError):
+            dice.normalize_dice_input("41 62 35")
+
+    def test_comma_separated_input_is_never_silently_accepted(self):
+        # "4,1,6,2,3,5" nao contem espacos, entao `normalize_dice_input`
+        # (que so decide entre os formatos COMPACTO/SEPARADO-POR-ESPACO
+        # olhando para a presenca de whitespace) a repassa inalterada; a
+        # rejeicao final acontece em `validate_rolls` (a virgula nao esta
+        # em ALPHABET). O importante, testado aqui, e que a cadeia
+        # normalize+validate usada pelo CLI nunca aceita silenciosamente
+        # um separador que nao seja espaco em branco.
+        normalized = dice.normalize_dice_input("4,1,6,2,3,5")
+        with self.assertRaises(dice.DiceInputError):
+            dice.validate_rolls(normalized)
+
+    def test_empty_input_is_rejected(self):
+        with self.assertRaises(dice.DiceInputError):
+            dice.normalize_dice_input("")
+        with self.assertRaises(dice.DiceInputError):
+            dice.normalize_dice_input("   ")
+
+    def test_error_messages_never_echo_received_characters(self):
+        # so o comprimento do token invalido pode aparecer na mensagem,
+        # nunca os proprios caracteres recebidos (mesma politica de
+        # `validate_rolls`).
+        secret_like_token = "letmein"
+        try:
+            dice.normalize_dice_input(f"4 1 {secret_like_token} 2")
+        except dice.DiceInputError as exc:
+            self.assertNotIn(secret_like_token, str(exc))
+        else:
+            self.fail("esperava DiceInputError")
+
+    def test_does_not_validate_face_range_itself(self):
+        # normalize_dice_input so lida com FORMATO; a validacao de que os
+        # digitos estao em 1..6 continua sendo responsabilidade exclusiva
+        # de validate_rolls, chamada depois.
+        self.assertEqual(dice.normalize_dice_input("7 8 9"), "789")
+        with self.assertRaises(dice.DiceInputError):
+            dice.validate_rolls(dice.normalize_dice_input("7 8 9"))
+
+
+class FlexibleDiceInputCliEndToEndTests(unittest.TestCase):
+    """Confirma que o formato separado por espacos tambem funciona de
+    ponta a ponta atraves do CLI `generate` (nao so na funcao pura)."""
+
+    def test_generate_accepts_space_separated_dice_sequence(self):
+        budget = entropy_calc.compute_budget()
+        digits = _real_d6_not_rejected(budget.rolls_operational)
+        spaced = " ".join(digits)
+        b = os.getrandom(32, 0)
+        io_builder = FakeIOBuilder([spaced], [NETWORK_OVERRIDE_PHRASE, "n"], b)
+        io = io_builder.build()
+        args = build_parser().parse_args(["generate", "--override-offline-check"])
+        rc = cmd_generate(args, io)
+        self.assertEqual(rc, 0)
+        expected_mnemonic = bip39.entropy_to_mnemonic(combine.combine(dice.encode(digits), b))
+        words = _extract_mnemonic_block(io_builder.blob)
+        self.assertEqual(words, expected_mnemonic.split())
+
+    def test_generate_rejects_ambiguous_mixed_format_and_retries(self):
+        budget = entropy_calc.compute_budget()
+        digits = _real_d6_not_rejected(budget.rolls_operational)
+        ambiguous = digits[:2] + " " + digits[2:]  # mistura compacto + espaco
+        b = os.getrandom(32, 0)
+        io_builder = FakeIOBuilder(
+            [ambiguous, digits], [NETWORK_OVERRIDE_PHRASE, "n"], b
+        )
+        io = io_builder.build()
+        args = build_parser().parse_args(["generate", "--override-offline-check"])
+        rc = cmd_generate(args, io)
+        self.assertEqual(rc, 0)
+        expected_mnemonic = bip39.entropy_to_mnemonic(combine.combine(dice.encode(digits), b))
+        words = _extract_mnemonic_block(io_builder.blob)
+        self.assertEqual(words, expected_mnemonic.split())
 
     def test_validator_accepts_none_and_sane_values(self):
         self.assertIsNone(_validate_rolls_arg(None))

@@ -31,6 +31,24 @@ class CalibrateTests(unittest.TestCase):
         self.assertIn("192", blob)
         self.assertIn("DESCARTAVEIS", blob.upper())
 
+    def test_accepts_space_separated_chunks(self):
+        # Fase E, requisito 6: `calibrate` tambem aceita o formato
+        # separado por espacos (via `dice.normalize_dice_input`), nao so
+        # o compacto.
+        chunk = " ".join("123456" * 10)  # 60 lancamentos, com espacos
+        io, captured = _io([chunk])
+        args = build_parser().parse_args(["calibrate", "--rolls", "60"])
+        rc = cmd_calibrate(args, io)
+        self.assertEqual(rc, 0)
+
+    def test_rejects_mixed_format_chunk_and_keeps_asking(self):
+        mixed = "12" + " " + "3456"  # mistura compacto + espaco
+        chunks = [mixed, "123456" * 10]
+        io, captured = _io(chunks)
+        args = build_parser().parse_args(["calibrate", "--rolls", "60"])
+        rc = cmd_calibrate(args, io)
+        self.assertEqual(rc, 0)
+
     def test_ignores_invalid_chunk_and_keeps_asking(self):
         chunks = ["abc", "123456" * 10]
         io, captured = _io(chunks)

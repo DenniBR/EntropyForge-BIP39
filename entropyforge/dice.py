@@ -1,10 +1,18 @@
 """Validacao e codificacao binaria da fonte A (lancamentos de d6 fisico).
 
-Um lancamento e um digito ASCII em '1'..'6'. A sequencia inteira e uma
-string desses digitos, sem separadores (cada caractere e exatamente um
-lancamento — nao ha ambiguidade a resolver, ao contrario de uma lista
-separada por virgulas). O CLI le esses caracteres de um TTY sem eco
-(ver cli.py); este modulo so lida com a string ja capturada.
+Um lancamento e um digito ASCII em '1'..'6'. Internamente (para
+`validate_rolls`/`encode`/`decode`), a sequencia inteira e sempre uma
+string desses digitos, sem separadores -- essa e a unica forma que essas
+tres funcoes aceitam, e permanece assim deliberadamente (bijecao simples,
+sem uma etapa de parsing entre a entrada e a validacao).
+
+A ENTRADA DO OPERADOR (o que ele digita/cola no terminal) pode estar num
+de dois formatos human-friendly, normalizados para o formato compacto
+acima por `normalize_dice_input` ANTES de chegar em `validate_rolls`/
+`encode` -- ver essa funcao para os dois formatos aceitos (compacto e
+separado por espacos) e a regra exata de rejeicao de ambiguidade (Fase E,
+requisito 6). O CLI le esses caracteres de um TTY sem eco (ver cli.py);
+este modulo so lida com a string ja capturada.
 
 A codificacao binaria (funcao `encode`) implementa a decisao D2 do design
 (docs/DESIGN.md): uma bijecao entre {1..6}^n e um intervalo de inteiros,
@@ -29,6 +37,57 @@ MAX_ROLLS = 0xFFFF
 
 class DiceInputError(ValueError):
     """Sequencia de lancamentos invalida ou fora dos limites suportados."""
+
+
+def normalize_dice_input(raw: str) -> str:
+    """Normaliza a entrada BRUTA de um operador para o formato compacto
+    exigido por `validate_rolls`/`encode` (Fase E, requisito 6).
+
+    Dois formatos sao aceitos, sem ambiguidade entre eles:
+
+      - COMPACTO: digitos colados, sem nenhum espaco em branco em
+        lugar nenhum da string (ex.: "416235").
+      - SEPARADO POR ESPACOS: exatamente um digito por token, separados
+        por qualquer quantidade de espacos/tabs (ex.: "4 1 6 2 3 5").
+
+    Qualquer entrada que misture os dois formatos, ou tenha um token com
+    mais ou menos de um caractere no formato separado por espacos, e
+    rejeitada explicitamente aqui como AMBIGUA (`DiceInputError`) em vez
+    de o programa tentar adivinhar a intencao do operador. A mensagem de
+    erro nunca inclui o conteudo dos caracteres recebidos, so o
+    comprimento do token invalido (mesma politica de `validate_rolls`).
+
+    Um separador que NAO seja espaco em branco (virgula, ponto-e-virgula,
+    etc.) nao e detectado por esta funcao especificamente -- por nao
+    conter nenhum whitespace, essa entrada e tratada como "formato
+    compacto" e repassada adiante sem alteracao. Ela nunca e aceita de
+    forma silenciosa, porem: `validate_rolls`, chamada logo em seguida
+    pelo chamador, rejeita esses caracteres (por nao estarem em '1'..'6')
+    com um erro de "caractere invalido", so que sem a palavra especifica
+    "ambigua". O efeito pratico (a sequencia inteira e sempre rejeitada)
+    e o mesmo.
+
+    Esta funcao NAO valida se os digitos estao em '1'..'6' -- isso
+    continua sendo responsabilidade exclusiva de `validate_rolls`,
+    chamada depois desta normalizacao.
+    """
+    if raw is None:
+        raise DiceInputError("entrada vazia")
+    stripped = raw.strip()
+    if not stripped:
+        raise DiceInputError("sequencia de lancamentos vazia")
+    if any(c.isspace() for c in stripped):
+        tokens = stripped.split()
+        for tok in tokens:
+            if len(tok) != 1:
+                raise DiceInputError(
+                    "entrada separada por espacos deve ter EXATAMENTE um "
+                    f"digito por token; encontrado um token de {len(tok)} "
+                    "caractere(s) -- formato ambiguo, rejeitado (nunca "
+                    "misture o formato compacto com o separado por espacos)"
+                )
+        return "".join(tokens)
+    return stripped
 
 
 def validate_rolls(digits: str) -> None:

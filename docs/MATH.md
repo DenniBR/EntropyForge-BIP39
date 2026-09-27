@@ -418,11 +418,29 @@ simulação (seção 10), não assumida sem verificação.
 
 ## 9. Orçamento de vazamento do relatório público
 
-O relatório exibido em `generate` (`report.public_report`) NÃO mostra a
-sequência, os p-valores nem as estatísticas — só as 6 contagens de face e
-um veredito PASS/WARN/FAIL por teste (exceto T1, cujo veredito é
-determinado pelas próprias contagens). Ainda assim, ele **revela
-informação** sobre `A`, e essa informação precisa ser contabilizada.
+**Nota (Fase E, procedimento de geração v2):** desde esta fase, o
+relatório efetivamente exibido por `generate` (`report.minimal_report`) é
+menor ainda do que o descrito nesta seção — mostra somente a decisão
+binária ACCEPTED/REJECTED, sem nenhuma contagem de face nem veredito por
+teste (essas continuam disponíveis, sem alteração, só em `calibrate`, via
+`report.full_report`, cujos dados são sempre descartáveis). O cálculo
+abaixo (`entropy_calc.report_leak_bits`, usado por
+`entropy_calc.compute_budget` para determinar `rolls_operational`) **não
+foi alterado** e continua sendo tratado como o orçamento vigente: como ele
+modela o vazamento do relatório MAIOR (`report.public_report`, mantido no
+código por completude e testado, mas não mais usado por `generate`), ele
+permanece um limite superior válido — na verdade agora conservador demais
+— para o vazamento real do relatório menor que é de fato mostrado. Reduzir
+o número de lançamentos recomendado com base nisso exigiria uma
+justificativa própria; por ora, a margem de segurança existente foi
+mantida sem alteração.
+
+O relatório reduzido original (`report.public_report`, ainda testado e
+disponível programaticamente) NÃO mostra a sequência, os p-valores nem as
+estatísticas — só as 6 contagens de face e um veredito PASS/WARN/FAIL por
+teste (exceto T1, cujo veredito é determinado pelas próprias contagens).
+Ainda assim, ele **revela informação** sobre `A`, e essa informação
+precisa ser contabilizada.
 
 **[FATO, regra da cadeia para min-entropia — Dodis, Ostrovsky, Reyzin,
 Smith, 2004]** Para qualquer função `f` de `A` que assume no máximo `|R|`
