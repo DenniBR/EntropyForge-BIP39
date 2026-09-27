@@ -45,6 +45,7 @@ protege, e o que não protege).
 | [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Modelo de ameaças completo (SO, hardware, supply chain, dado enviesado, computação quântica, etc.) |
 | [`docs/AUDIT.md`](docs/AUDIT.md) | Guia de auditoria: hashes, ordem de leitura, invariantes e onde cada um é testado |
 | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Como operar com segurança, passo a passo, incluindo a nota sobre passphrase BIP-39 |
+| [`docs/PLATFORM_SUPPORT.md`](docs/PLATFORM_SUPPORT.md) | Matriz de suporte a plataformas: Linux/Tails/Debian live (suportado), Windows (avaliado, não recomendado), Windows XP (não suportada) |
 | [`docs/GENERATION_CEREMONY.md`](docs/GENERATION_CEREMONY.md) | Os 15 passos da cerimônia de geração offline, do boot ao desligamento |
 | [`docs/RELEASE_SECURITY_CHECKLIST.md`](docs/RELEASE_SECURITY_CHECKLIST.md) | Checklist rápido pré-geração (sem exibir nenhum segredo) |
 | [`docs/REDTEAM.md`](docs/REDTEAM.md) | Auditoria adversarial (red team): o que foi atacado, o que quebrou, o que foi corrigido |

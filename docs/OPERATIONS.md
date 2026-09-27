@@ -6,6 +6,13 @@ recomendações abaixo existem para reduzir riscos específicos listados lá.
 
 ## 1. Antes de começar
 
+- **Plataforma:** use Linux (qualquer distro moderna, Tails e Debian live
+  incluídos) — é a única plataforma com a checagem automática de rede
+  offline funcional e com toda a auditoria de segurança deste projeto
+  aplicada. Windows roda o código, mas sem essa checagem automática (a
+  responsabilidade de garantir offline vira manual); Windows XP não roda
+  o programa. Ver `docs/PLATFORM_SUPPORT.md` para a matriz completa antes
+  de escolher o computador.
 - **Ambiente:** idealmente, um computador dedicado, iniciado a partir de
   uma mídia live verificada (ex.: Tails), sem conexão Wi-Fi/Ethernet
   ativa, sem Bluetooth, sem outros processos abertos. Se possível, um

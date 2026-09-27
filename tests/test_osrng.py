@@ -47,6 +47,28 @@ class CsprngUnavailableTests(unittest.TestCase):
                 osrng.read_os_entropy()
 
 
+class NonLinuxPlatformTests(unittest.TestCase):
+    """`os.getrandom` e uma chamada de sistema exclusiva do Linux; em
+    outras plataformas (Windows, macOS, *BSD) o modulo `os` do CPython
+    simplesmente nao a expoe (ver docs/PLATFORM_SUPPORT.md). Este teste
+    simula essa ausencia removendo o atributo temporariamente, para
+    confirmar que o modulo usa `os.urandom` -- uma chamada legitima ao
+    CSPRNG do SO na plataforma atual (`BCryptGenRandom` no Windows,
+    `getentropy()` em macOS/BSD), nunca `random` nem qualquer fonte nao
+    criptografica."""
+
+    def test_uses_urandom_when_getrandom_attribute_is_absent(self):
+        original = os.getrandom
+        del os.getrandom
+        try:
+            with mock.patch("os.urandom", return_value=bytes(range(32))) as mock_urandom:
+                data = osrng.read_os_entropy()
+            self.assertEqual(data, bytes(range(32)))
+            mock_urandom.assert_called_once_with(32)
+        finally:
+            os.getrandom = original
+
+
 class DegenerateOutputTests(unittest.TestCase):
     def test_all_zero_output_rejected(self):
         with mock.patch("os.getrandom", return_value=b"\x00" * 32):
