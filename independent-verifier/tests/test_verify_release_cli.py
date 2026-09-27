@@ -30,18 +30,30 @@ def _build_pyz(out_path: Path) -> None:
     build_pyz.build(out_path)
 
 
+def _build_fake_executable_dist(out_dir: Path) -> Path:
+    """Ver docstring gemea em tests/test_release_manifest.py -- um
+    diretorio minimo, nao um executavel Nuitka de verdade, suficiente para
+    exercitar o CONTRATO DE SAIDA do CLI sem pagar o custo de um build
+    real a cada execucao desta suite."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "entropyforge-bip39").write_bytes(b"fake binary, so para hash deterministico")
+    return out_dir
+
+
 class VerifyReleaseCliTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp())
         cls.pyz = cls.tmp / "entropyforge.pyz"
         _build_pyz(cls.pyz)
+        cls.executable_dist = _build_fake_executable_dist(cls.tmp / "fake_exe")
         cls.manifest_path = cls.tmp / "MANIFEST.txt"
         manifest = compute_release_manifest(
             entropyforge_root=ENTROPYFORGE_ROOT,
             pyz_path=cls.pyz,
             verifier_root=VERIFIER_ROOT,
             build_script_path=BUILD_SCRIPT,
+            executable_dist_dir=cls.executable_dist,
         )
         cls.manifest_path.write_text(manifest.to_text(), encoding="utf-8")
 
@@ -59,6 +71,7 @@ class VerifyReleaseCliTests(unittest.TestCase):
                 "--verifier-root", str(VERIFIER_ROOT),
                 "--build-script", str(BUILD_SCRIPT),
                 "--vectors", str(VECTORS_PATH),
+                "--executable-dist", str(self.executable_dist),
                 *extra_args,
             ],
             capture_output=True, text=True, timeout=60,
@@ -90,6 +103,7 @@ class VerifyReleaseCliTests(unittest.TestCase):
                 "--verifier-root", str(VERIFIER_ROOT),
                 "--build-script", str(BUILD_SCRIPT),
                 "--vectors", str(VECTORS_PATH),
+                "--executable-dist", str(self.executable_dist),
             ],
             capture_output=True, text=True, timeout=60,
         )
@@ -106,6 +120,7 @@ class VerifyReleaseCliTests(unittest.TestCase):
                 "--verifier-root", str(VERIFIER_ROOT),
                 "--build-script", str(BUILD_SCRIPT),
                 "--vectors", str(VECTORS_PATH),
+                "--executable-dist", str(self.executable_dist),
             ],
             capture_output=True, text=True, timeout=60,
         )

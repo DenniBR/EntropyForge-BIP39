@@ -22,12 +22,30 @@ VERIFIER_ROOT = REPO_ROOT / "independent-verifier" / "verifier"
 BUILD_SCRIPT = REPO_ROOT / "tools" / "build_pyz.py"
 VECTORS_PATH = REPO_ROOT / "tests" / "vectors" / "bip39_vectors.json"
 
+_EXECUTABLE_FIELDS = dict(
+    executable_sha256="f" * 64,
+    executable_platform="Linux",
+    executable_arch="x86_64",
+    executable_build_tool="nuitka-0.0.0+python-0.0.0+gcc-0.0.0",
+)
+
 
 def _build_pyz(out_path: Path) -> None:
     sys.path.insert(0, str(REPO_ROOT / "tools"))
     import build_pyz  # type: ignore
 
     build_pyz.build(out_path)
+
+
+def _build_fake_executable_dist(out_dir: Path) -> Path:
+    """Um diretorio MINIMO parecido com a saida de tools/build_executable.py,
+    usado so pelos testes RAPIDOS desta suite (roundtrip de texto,
+    determinismo do calculo) -- nao um executavel real. Os testes que
+    precisam de um executavel Nuitka de verdade (ExecutableFieldsTests)
+    tem seu proprio skip se nuitka/gcc estiverem ausentes."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "entropyforge-bip39").write_bytes(b"fake binary, so para hash deterministico")
+    return out_dir
 
 
 class ReadVersionConstantsTests(unittest.TestCase):
@@ -78,12 +96,13 @@ class ManifestTextRoundtripTests(unittest.TestCase):
             protocol_version_a="1",
             generation_procedure_version="2",
             wordlist_version="bip39-english-2013",
-            manifest_format_version="1",
+            manifest_format_version="2",
             wordlist_sha256="a" * 64,
             source_manifest_sha256="b" * 64,
             pyz_sha256="c" * 64,
             build_script_sha256="d" * 64,
             verifier_source_sha256="e" * 64,
+            **_EXECUTABLE_FIELDS,
         )
         self.assertEqual(parse_release_manifest_text(m.to_text()), m)
 
@@ -94,9 +113,10 @@ class ManifestTextRoundtripTests(unittest.TestCase):
     def test_unexpected_field_rejected(self):
         m = ReleaseManifest(
             software_version="1.0.0", protocol_version_a="1", generation_procedure_version="2",
-            wordlist_version="x", manifest_format_version="1", wordlist_sha256="a" * 64,
+            wordlist_version="x", manifest_format_version="2", wordlist_sha256="a" * 64,
             source_manifest_sha256="b" * 64, pyz_sha256="c" * 64, build_script_sha256="d" * 64,
             verifier_source_sha256="e" * 64,
+            **_EXECUTABLE_FIELDS,
         )
         text = m.to_text() + "mnemonic=abandon abandon abandon\n"
         with self.assertRaises(ReleaseManifestError):
@@ -117,6 +137,7 @@ class ComputeAndVerifyReleaseTests(unittest.TestCase):
         cls.tmp = Path(tempfile.mkdtemp())
         cls.pyz = cls.tmp / "entropyforge.pyz"
         _build_pyz(cls.pyz)
+        cls.executable_dist = _build_fake_executable_dist(cls.tmp / "fake_exe")
 
     @classmethod
     def tearDownClass(cls):
@@ -128,6 +149,7 @@ class ComputeAndVerifyReleaseTests(unittest.TestCase):
             pyz_path=self.pyz,
             verifier_root=VERIFIER_ROOT,
             build_script_path=BUILD_SCRIPT,
+            executable_dist_dir=self.executable_dist,
         )
 
     def test_compute_is_deterministic(self):
@@ -142,6 +164,7 @@ class ComputeAndVerifyReleaseTests(unittest.TestCase):
             verifier_root=VERIFIER_ROOT,
             build_script_path=BUILD_SCRIPT,
             official_vectors_path=VECTORS_PATH,
+            executable_dist_dir=self.executable_dist,
         )
         self.assertTrue(result.passed, msg=result.format_report())
         self.assertTrue(all(c.ok for c in result.checks))
@@ -160,6 +183,7 @@ class ComputeAndVerifyReleaseTests(unittest.TestCase):
             verifier_root=VERIFIER_ROOT,
             build_script_path=BUILD_SCRIPT,
             official_vectors_path=VECTORS_PATH,
+            executable_dist_dir=self.executable_dist,
         )
         self.assertFalse(result.passed)
         pyz_field_check = next(c for c in result.checks if c.name == "manifesto.pyz_sha256")
@@ -174,6 +198,7 @@ class ComputeAndVerifyReleaseTests(unittest.TestCase):
             verifier_root=VERIFIER_ROOT,
             build_script_path=BUILD_SCRIPT,
             official_vectors_path=VECTORS_PATH,
+            executable_dist_dir=self.executable_dist,
         )
         self.assertFalse(result.passed)
         version_field_check = next(c for c in result.checks if c.name == "manifesto.software_version")
@@ -200,6 +225,7 @@ class ComputeAndVerifyReleaseTests(unittest.TestCase):
                 verifier_root=VERIFIER_ROOT,
                 build_script_path=BUILD_SCRIPT,
                 official_vectors_path=VECTORS_PATH,
+                executable_dist_dir=self.executable_dist,
             )
             self.assertFalse(result.passed)
 

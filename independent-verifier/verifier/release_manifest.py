@@ -28,6 +28,23 @@ metadados de BUILD, nunca dados de uma geracao real):
     verificador antes de comparar resultados), NAO uma garantia de que o
     verificador em si esta correto (isso e o que a propria suite de testes
     e o mutation testing de `docs/INDEPENDENT_VERIFIER.md` secao 7 cobrem).
+  - `executable_sha256` (Fase F): hash do manifesto deterministico de
+    TODOS os arquivos do diretorio do executavel standalone (nao so o
+    binario principal -- inclui as bibliotecas `.so` empacotadas junto).
+    Ao contrario do `.pyz`, o executavel compilado nao tem correspondencia
+    byte a byte com o source-tree, entao a UNICA verificacao forte
+    possivel e RECONSTRUI-LO a partir do source e comparar hashes -- isso
+    e feito por `independent-verifier/verify_executable.py`, nao por
+    `verify_release` (que continua rapido e sem depender de `nuitka`).
+  - `executable_platform`/`executable_arch` (Fase F): `platform.system()`/
+    `platform.machine()` da maquina que construiu o executavel (ex.:
+    `Linux`/`x86_64`). Ver docs/PLATFORM_SUPPORT.md e docs/EXECUTABLE_BUILD.md
+    para quais combinacoes sao de fato suportadas/verificadas.
+  - `executable_build_tool` (Fase F): string unica identificando a
+    ferramenta de empacotamento e as versoes exatas de Python/gcc usadas
+    (ex.: `nuitka-4.2.2+python-3.11.15+gcc-13.3.0`) -- requisito 4 da
+    Fase F ("nao assumir que 'Python embutido' e automaticamente
+    confiavel": documentar exatamente o que foi usado).
 
 NUNCA inclua neste manifesto: a mnemonic, a entropia combinada, A, B, uma
 seed, ou uma passphrase. Nao ha, hoje, nenhum campo aqui que pudesse
@@ -38,6 +55,7 @@ adicionado.
 
 from __future__ import annotations
 
+import platform
 import re
 from dataclasses import dataclass, fields
 from pathlib import Path
@@ -92,6 +110,10 @@ class ReleaseManifest:
     pyz_sha256: str
     build_script_sha256: str
     verifier_source_sha256: str
+    executable_sha256: str
+    executable_platform: str
+    executable_arch: str
+    executable_build_tool: str
 
     def to_text(self) -> str:
         lines = [f"{f.name}={getattr(self, f.name)}" for f in fields(self)]
@@ -127,12 +149,49 @@ def _source_manifest_hash(root: Path, *, include_suffixes: tuple[str, ...]) -> s
     return hash_bytes(manifest_to_text(entries).encode("utf-8"))
 
 
+def executable_manifest_hash(dist_dir: Path) -> str:
+    """Hash deterministico de TODOS os arquivos do diretorio do
+    executavel (binario principal + `.so` empacotados) -- ao contrario do
+    `.pyz`, nao ha comparacao byte a byte possivel contra o source (ver
+    docstring do modulo)."""
+    entries = build_manifest(dist_dir)
+    return hash_bytes(manifest_to_text(entries).encode("utf-8"))
+
+
+def build_tool_identifier() -> str:
+    """String unica identificando a ferramenta de build e as versoes
+    exatas de Python/gcc do AMBIENTE ATUAL -- usada tanto para gravar o
+    campo `executable_build_tool` no manifesto quanto, depois, para
+    decidir se um rebuild de verificacao esta rodando no mesmo ambiente
+    que produziu o release (ver docs/EXECUTABLE_RELEASE_CHECKS.md secao 2
+    sobre por que isso importa: reprodutibilidade ENTRE versoes diferentes
+    de Python/gcc/Nuitka nao foi testada)."""
+    try:
+        import nuitka.Version
+
+        nuitka_version = nuitka.Version.getNuitkaVersion()
+    except Exception:  # noqa: BLE001
+        nuitka_version = "desconhecida"
+    python_version = platform.python_version()
+    gcc_version = "desconhecida"
+    try:
+        import subprocess
+
+        out = subprocess.run(["gcc", "-dumpversion"], capture_output=True, text=True, timeout=5)
+        if out.returncode == 0:
+            gcc_version = out.stdout.strip()
+    except Exception:  # noqa: BLE001
+        pass
+    return f"nuitka-{nuitka_version}+python-{python_version}+gcc-{gcc_version}"
+
+
 def compute_release_manifest(
     *,
     entropyforge_root: Path,
     pyz_path: Path,
     verifier_root: Path,
     build_script_path: Path,
+    executable_dist_dir: Path,
 ) -> ReleaseManifest:
     """Recalcula, do zero, TODOS os campos do manifesto de release a
     partir dos arquivos reais em disco -- nunca a partir de um manifesto
@@ -153,6 +212,10 @@ def compute_release_manifest(
         pyz_sha256=hash_file(pyz_path),
         build_script_sha256=hash_file(build_script_path),
         verifier_source_sha256=_source_manifest_hash(verifier_root, include_suffixes=(".py",)),
+        executable_sha256=executable_manifest_hash(executable_dist_dir),
+        executable_platform=platform.system(),
+        executable_arch=platform.machine(),
+        executable_build_tool=build_tool_identifier(),
     )
 
 
@@ -185,6 +248,7 @@ def verify_release(
     verifier_root: Path,
     build_script_path: Path,
     official_vectors_path: Path,
+    executable_dist_dir: Path,
 ) -> ReleaseVerification:
     """Verificacao completa de um release, combinando todos os controles
     independentes ja existentes neste projeto. NUNCA confia em nenhum
@@ -204,6 +268,7 @@ def verify_release(
         pyz_path=pyz_path,
         verifier_root=verifier_root,
         build_script_path=build_script_path,
+        executable_dist_dir=executable_dist_dir,
     )
     for f in fields(ReleaseManifest):
         expected = getattr(manifest, f.name)

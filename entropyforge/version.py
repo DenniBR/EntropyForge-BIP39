@@ -39,7 +39,11 @@ SOFTWARE_VERSION = "1.0.0"
 PROTOCOL_VERSION_A = "1"
 GENERATION_PROCEDURE_VERSION = "2"
 WORDLIST_VERSION = "bip39-english-2013"
-MANIFEST_FORMAT_VERSION = "1"
+# v2 (Fase F): adicionados os campos executable_sha256/executable_platform/
+# executable_arch/executable_build_tool, para cobrir o executavel standalone
+# (tools/build_executable.py) alem do .pyz -- ver
+# independent-verifier/verifier/release_manifest.py.
+MANIFEST_FORMAT_VERSION = "2"
 
 
 @dataclass(frozen=True)

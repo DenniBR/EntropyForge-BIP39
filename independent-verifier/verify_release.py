@@ -11,7 +11,14 @@ Uso:
         --pyz entropyforge.pyz \\
         --verifier-root independent-verifier/verifier \\
         --build-script tools/build_pyz.py \\
-        --vectors tests/vectors/bip39_vectors.json
+        --vectors tests/vectors/bip39_vectors.json \\
+        --executable-dist dist_executable/entropyforge-bip39-vX.Y.Z-linux-x86_64
+
+Esta checagem cobre os campos do executavel de forma RAPIDA (compara o
+hash do diretorio contra o que o manifesto reivindica), sem reconstruir
+nada e sem depender de `nuitka` estar instalado. Para a verificacao FORTE
+do executavel (reconstruir a partir do source e comparar), use
+`independent-verifier/verify_executable.py` (Fase F).
 
 Saida (stdout, sempre uma unica palavra, para uso em scripts):
 
@@ -70,6 +77,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="caminho do JSON de vetores oficiais BIP-39 (tests/vectors/bip39_vectors.json)",
     )
     parser.add_argument(
+        "--executable-dist", required=True, type=Path,
+        help="caminho do diretorio do executavel standalone (saida de tools/build_executable.py)",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true",
         help="tambem imprime o detalhamento campo-a-campo em stderr",
     )
@@ -86,6 +97,7 @@ def main(argv: list[str] | None = None) -> int:
         ("--verifier-root", args.verifier_root),
         ("--build-script", args.build_script),
         ("--vectors", args.vectors),
+        ("--executable-dist", args.executable_dist),
     ):
         if not path.exists():
             print(f"erro: {label} nao encontrado: {path}", file=sys.stderr)
@@ -104,6 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         verifier_root=args.verifier_root,
         build_script_path=args.build_script,
         official_vectors_path=args.vectors,
+        executable_dist_dir=args.executable_dist,
     )
 
     if args.verbose:
