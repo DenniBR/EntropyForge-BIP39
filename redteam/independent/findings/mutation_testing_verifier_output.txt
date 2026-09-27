@@ -1,0 +1,31 @@
+--- aplicando mutante: hashing_diff_ignores_sha256_only_checks_size ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: hashing_hash_file_always_same_value ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: wordlist_check_skip_duplicate_check ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: wordlist_check_official_hash_always_matches ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: pyz_inspect_ignores_unexpected_files ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: pyz_inspect_bootstrap_check_always_ok ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: bip39_min_checksum_uses_last_byte ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: static_scan_rede_category_removed ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: build_repro_identical_ignores_hash ---
+    KILLED (algum teste pegou o mutante)
+
+=== RESUMO (mutation testing do independent-verifier) ===
+hashing_diff_ignores_sha256_only_checks_size     KILLED (algum teste pegou o mutante)
+hashing_hash_file_always_same_value              KILLED (algum teste pegou o mutante)
+wordlist_check_skip_duplicate_check              KILLED (algum teste pegou o mutante)
+wordlist_check_official_hash_always_matches      KILLED (algum teste pegou o mutante)
+pyz_inspect_ignores_unexpected_files             KILLED (algum teste pegou o mutante)
+pyz_inspect_bootstrap_check_always_ok            KILLED (algum teste pegou o mutante)
+bip39_min_checksum_uses_last_byte                KILLED (algum teste pegou o mutante)
+static_scan_rede_category_removed                KILLED (algum teste pegou o mutante)
+build_repro_identical_ignores_hash               KILLED (algum teste pegou o mutante)
+
+0 de 9 mutantes SOBREVIVERAM (lacunas de cobertura reais).

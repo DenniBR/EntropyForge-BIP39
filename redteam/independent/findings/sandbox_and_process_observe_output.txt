@@ -1,0 +1,133 @@
+Fase 10-12 -- Import attacks, observacao externa de processo (strace) e
+sandbox de rede isolada (unshare --net)
+============================================================================
+
+Este arquivo consolida os resultados empiricos das Fases 11 e 12 (a Fase
+10, ataques de import, ja estava documentada separadamente em
+import_attacks_output.txt). Todos os comandos abaixo foram executados de
+verdade neste ambiente (Linux, com `strace` e `unshare` instalados);
+nenhum resultado aqui e hipotetico.
+
+----------------------------------------------------------------------
+BUG ENCONTRADO E CORRIGIDO no PROPRIO verificador (verifier/process_observe.py)
+----------------------------------------------------------------------
+
+Classificacao: MEDIUM (falso positivo que anulava a utilidade de um sinal
+do verificador -- nao e uma falha de deteccao de um ataque real, mas uma
+falha de PRECISAO que, se nao corrigida, teria feito o verificador
+"gritar lobo" em toda e qualquer execucao).
+
+Sintoma: `TraceResult.spawned_process` retornava SEMPRE `True`, mesmo para
+`python3 -c "print(1+1)"` (um script que nao gera nenhum processo filho).
+
+Causa raiz: a forma como `strace cmd` funciona -- ele faz fork(), o
+processo filho chama PTRACE_TRACEME e entao faz execve(cmd); esse execve
+INICIAL do proprio comando de nivel superior sendo tracado E capturado
+pelo strace como qualquer outra syscall, e aparece como a primeira linha
+do log. O parser antigo (`_parse_strace_log`) contava qualquer `execve`
+encontrado como evidencia de "processo gerado", incluindo esse primeiro,
+que na verdade e so o processo que o PROPRIO CHAMADOR pediu para rodar --
+nao um filho gerado pelo programa observado.
+
+Reproducao (antes da correcao):
+    $ python3 -c "
+      from verifier.process_observe import trace_process
+      r = trace_process([sys.executable, '-c', 'print(1+1)'], cwd=tmp)
+      print(r.spawned_process)   # True -- ERRADO, nenhum filho foi criado
+      "
+
+Correcao: a primeira ocorrencia de `execve` em TODO o log (nao por PID) e
+excluida de `process_syscalls` antes de qualquer outra classificacao --
+ela e deterministicamente o exec do comando de nivel superior, ja que o
+dynamic linker so comeca a fazer `openat()` para carregar bibliotecas
+IMEDIATAMENTE DEPOIS desse execve, entao ele e garantidamente a primeira
+linha cronologica do log filtrado.
+
+Teste de regressao: `tests/test_process_observe.py::BenignProcessTests::
+test_plain_script_does_not_falsely_report_spawned_process`.
+
+Verificacao pos-fix (mutation-testing manual): revertendo a correcao
+(comentando a exclusao da primeira execve), o teste acima falha
+imediatamente -- confirma que o teste de fato mata essa regressao
+especifica.
+
+----------------------------------------------------------------------
+Fase 11 -- Observacao externa via strace (independente do guard.py)
+----------------------------------------------------------------------
+
+Confirmado empiricamente, para scripts SEM NENHUM CODIGO do EntropyForge:
+
+  - `python3 -c "print(1+1)"`            -> touched_network=False,
+    spawned_process=False, wrote_to_disk=False (nenhum falso positivo).
+  - `subprocess.run(['true'])`           -> spawned_process=True
+    (vfork + execve de /usr/bin/true corretamente capturados).
+  - socket UDP cru (sendto para 127.0.0.1:9) -> touched_network=True.
+  - `open(path, 'wb').write(...)`        -> wrote_to_disk=True (flag
+    O_WRONLY visivel na linha do openat).
+  - `open(path, 'r').read()`             -> wrote_to_disk=False
+    (nao ha flag de escrita na chamada openat).
+
+Conclusao: o modulo de observacao de processo funciona no nivel de
+SYSCALL DO KERNEL, uma camada que nenhum bug ou backdoor em codigo Python
+do EntropyForge pode mascarar (mesmo que `guard.py` estivesse totalmente
+desativado ou removido, o `strace` ainda veria a tentativa real).
+
+----------------------------------------------------------------------
+Fase 12 -- Sandbox com rede isolada (unshare --net) + diff de workdir
+----------------------------------------------------------------------
+
+Teste 1 -- artefato limpo dentro do sandbox:
+    $ run_in_sandbox([python3, '-I', '-B', 'clean.pyz', 'selftest'], workdir=...)
+    returncode=0, "RESULTADO GERAL: PASSOU" no stdout,
+    network_isolation_applied=True, workdir_diff.is_identical=True.
+  -> a execucao normal do artefato dentro do sandbox produz o mesmo
+     resultado que fora dele, e nao deixa nenhum arquivo no diretorio de
+     trabalho monitorado.
+
+Teste 2 -- prova de que o isolamento de rede e INDEPENDENTE do guard.py
+(propriedade central exigida pela Fase 12): um script Python PURO, SEM
+NENHUMA RELACAO com o EntropyForge, que tenta abrir um socket UDP cru e
+enviar dados:
+
+    COM isolamento (isolate_network=True):
+        stdout: "BLOCKED: OSError(101, 'Network is unreachable')"
+    SEM isolamento (isolate_network=False, controle):
+        stdout: "SENT_OK"
+
+  -> Isso demonstra que a protecao de rede do sandbox NAO depende de
+     nenhum audit hook do EntropyForge estar ativo, correto, ou sequer
+     presente -- e uma NAMESPACE DE REDE VAZIA no nivel do KERNEL. Mesmo
+     num cenario hipotetico em que TODO o guard.py fosse removido ou
+     contornado, uma tentativa real de rede ainda falharia dentro deste
+     sandbox.
+
+Teste 3 -- diff de diretorio de trabalho:
+    - um `open('leaked.txt', 'w')` DENTRO do workdir monitorado E
+      detectado (`workdir_diff.added == ('leaked.txt',)`).
+    - um `open(<caminho absoluto FORA do workdir>, 'w')` NAO e detectado
+      -- o arquivo e criado normalmente no sistema de arquivos real,
+      apenas fora do escopo do que este sandbox monitora.
+
+----------------------------------------------------------------------
+LIMITACAO EXPLICITA (obrigatoria pela Fase 12) -- reafirmada aqui com
+evidencia empirica direta, nao apenas teorica:
+----------------------------------------------------------------------
+
+"nao tentou rede no sandbox" NAO e prova de que nenhum payload existe:
+
+  1. O payload pode ser CONDICIONAL (backdoors de laboratorio 07/08/09
+     demonstram isso: so ativam fora de selftest, ou fora da pilha de
+     chamadas do selftest, ou com uma variavel de ambiente especifica --
+     rodar apenas `selftest` dentro do sandbox nunca os exercitaria).
+  2. O payload pode escrever FORA do diretorio de trabalho monitorado
+     (ex.: em `/tmp` diretamente, como os backdoors 02, 04 e 06) -- este
+     sandbox SO isola REDE; o sistema de arquivos real fora do workdir
+     continua acessivel e nao e monitorado por este modulo.
+  3. O payload pode simplesmente nao ter sido exercitado pela entrada
+     usada neste teste especifico (ex.: um comando `vector` diferente,
+     argumentos diferentes, um estado de ambiente diferente).
+
+Este modulo (e sua documentacao) tratam isso como um limite estrutural
+conhecido, nao uma falha de implementacao -- a mesma logica de
+"evidencia, nao prova" aplicada ao `static_scan.py` (Fase 8) e ao
+`selftest` do proprio EntropyForge (Fase 7).

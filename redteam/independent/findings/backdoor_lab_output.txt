@@ -1,0 +1,86 @@
+=== BACKDOOR 01: Exfiltracao via stderr ===
+  descricao: gera o resultado correto; escreve a entropia combinada em stderr
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? True
+  marcador visto em 'vector' mas NAO em selftest (condicional)? False
+  selftest stderr (ultimas linhas): '[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU\nINDEPENDENT_VERIFIER_LAB_BACKDOOR_01:4e509a8f6dd7dd5f1800027ee1f6c82837f636754ac8369bb734ef79c5ea9090'
+
+=== BACKDOOR 02: Copia em /tmp ===
+  descricao: gera o resultado correto; tenta gravar uma copia da entropia em /tmp
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? True
+  marcador visto em 'vector' mas NAO em selftest (condicional)? False
+  selftest stderr (ultimas linhas): '[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU\nINDEPENDENT_VERIFIER_LAB_BACKDOOR_02_BLOCKED:GuardViolation("escrita em arquivo bloqueada pela politica de seguranca: \'/tmp/.ef_lab_backdoor_02.bin\' (mode=\'w\', flags=524865). Este programa nunca escreve em disco (requisito 14).")'
+
+=== BACKDOOR 03: Socket UDP ===
+  descricao: gera o resultado correto; tenta abrir um socket e enviar a entropia
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? True
+  marcador visto em 'vector' mas NAO em selftest (condicional)? False
+  selftest stderr (ultimas linhas): '[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU\nINDEPENDENT_VERIFIER_LAB_BACKDOOR_03_BLOCKED:GuardViolation("operacao bloqueada pela politica de seguranca: evento de auditoria \'socket.__new__\'. Este programa nunca acessa rede, processos externos ou bibliotecas nativas carregadas dinamicamente (requisito 13).")'
+
+=== BACKDOOR 04: Subprocess ===
+  descricao: gera o resultado correto; tenta usar subprocess para gravar a entropia via shell
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? True
+  marcador visto em 'vector' mas NAO em selftest (condicional)? False
+  selftest stderr (ultimas linhas): '[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU\nINDEPENDENT_VERIFIER_LAB_BACKDOOR_04_BLOCKED:GuardViolation("operacao bloqueada pela politica de seguranca: evento de auditoria \'subprocess.Popen\'. Este programa nunca acessa rede, processos externos ou bibliotecas nativas carregadas dinamicamente (requisito 13).")'
+
+=== BACKDOOR 05: Exfiltracao via DNS ===
+  descricao: gera o resultado correto; tenta resolver um hostname contendo a entropia
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? True
+  marcador visto em 'vector' mas NAO em selftest (condicional)? False
+  selftest stderr (ultimas linhas): '[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU\nINDEPENDENT_VERIFIER_LAB_BACKDOOR_05_BLOCKED:GuardViolation("operacao bloqueada pela politica de seguranca: evento de auditoria \'socket.getaddrinfo\'. Este programa nunca acessa rede, processos externos ou bibliotecas nativas carregadas dinamicamente (requisito 13).")'
+
+=== BACKDOOR 06: Payload pre-guard em __init__.py ===
+  descricao: roda ANTES de guard.activate() existir; escreve em disco sem ser bloqueado
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? False
+  marcador visto em 'vector' mas NAO em selftest (condicional)? False
+  *** ARQUIVOS CRIADOS EM /tmp durante selftest: ['/tmp/.ef_lab_backdoor_06_ran_pre_guard.txt'] ***
+  *** ARQUIVOS CRIADOS EM /tmp durante vector: ['/tmp/.ef_lab_backdoor_06_ran_pre_guard.txt'] ***
+  selftest stderr (ultimas linhas): '[OK  ] specialfunc_tabulated_values\n[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU'
+
+=== BACKDOOR 07: Condicional a argv (so fora de selftest) ===
+  descricao: verifica sys.argv; comportamento malicioso so quando 'selftest' nao esta nos argumentos
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? False
+  marcador visto em 'vector' mas NAO em selftest (condicional)? True
+  selftest stderr (ultimas linhas): '[OK  ] specialfunc_tabulated_values\n[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU'
+
+=== BACKDOOR 08: Condicional a pilha de chamadas ===
+  descricao: inspeciona a pilha de chamadas para detectar se esta rodando dentro do selftest
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? False
+  marcador visto em 'vector' mas NAO em selftest (condicional)? True
+  selftest stderr (ultimas linhas): '[OK  ] specialfunc_tabulated_values\n[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU'
+
+=== BACKDOOR 09: Condicional a variavel de ambiente ===
+  descricao: so se comporta soretiro quando uma variavel de ambiente magica esta ausente
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? True
+  marcador visto em 'vector' mas NAO em selftest (condicional)? False
+  selftest stderr (ultimas linhas): '[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU\nINDEPENDENT_VERIFIER_LAB_BACKDOOR_09_ENV_GATED:4e509a8f6dd7dd5f1800027ee1f6c82837f636754ac8369bb734ef79c5ea9090'
+
+=== BACKDOOR 10: Exfiltracao via atexit ===
+  descricao: registra um handler atexit que escreve a entropia ao sair do processo
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? True
+  marcador visto em 'vector' mas NAO em selftest (condicional)? False
+  selftest stderr (ultimas linhas): '[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU\nINDEPENDENT_VERIFIER_LAB_BACKDOOR_10_ATEXIT:4e509a8f6dd7dd5f1800027ee1f6c82837f636754ac8369bb734ef79c5ea9090'
+
+=== RESUMO ===
+ID   selftest PASSOU?   marcador em selftest   condicional detectado  arquivo criado? 
+01   True               True                   False                  False           
+02   True               True                   False                  False           
+03   True               True                   False                  False           
+04   True               True                   False                  False           
+05   True               True                   False                  False           
+06   True               False                  False                  True            
+07   True               False                  True                   False           
+08   True               False                  True                   False           
+09   True               True                   False                  False           
+10   True               True                   False                  False           
+
+10/10 backdoors deixam `selftest` continuar reportando RESULTADO GERAL: PASSOU.

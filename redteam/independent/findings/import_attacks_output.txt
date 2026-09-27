@@ -1,0 +1,22 @@
+=== pyz com -I -B (uso real recomendado) ===
+  hashlib.py do cwd foi carregado? False
+  sitecustomize.py do cwd foi carregado? False
+  selftest reporta PASSOU? True
+
+=== pyz com -S -I -B (site desabilitado, comparacao) ===
+  hashlib.py do cwd foi carregado? False
+  sitecustomize.py do cwd foi carregado? False
+  selftest reporta PASSOU? True
+
+=== source com -B -m entropyforge, SEM -I (dev) ===
+  hashlib.py do cwd foi carregado? True
+  sitecustomize.py do cwd foi carregado? False
+  selftest reporta PASSOU? False
+
+=== RESUMO ===
+pyz com -I -B (uso real recomendado): hashlib_shadowed=False sitecustomize_shadowed=False selftest_passou=True
+pyz com -S -I -B (site desabilitado, comparacao): hashlib_shadowed=False sitecustomize_shadowed=False selftest_passou=True
+source com -B -m entropyforge, SEM -I (dev): hashlib_shadowed=True sitecustomize_shadowed=False selftest_passou=False
+
+1/3 formas de invocacao sao vulneraveis a shadowing via cwd.
+  VULNERAVEL: source com -B -m entropyforge, SEM -I (dev)

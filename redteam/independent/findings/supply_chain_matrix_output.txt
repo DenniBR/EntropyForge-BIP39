@@ -1,0 +1,61 @@
+=== Rodando cenario scenario_a ===
+  id: A
+  title: Uma linha alterada no source (dice.py, fora do caminho critico)
+  detected: True
+  hashing_manifest_diff: True
+  static_scan_new_findings: False
+  bip39_compare_mismatch: False
+  note: Detectado pelo diff de manifesto (QUALQUER alteracao de conteudo aparece), mas NAO pela comparacao BIP-39 (dice.py nao participa dessa logica) nem, tipicamente, pelo scanner estatico (afrouxar uma checagem de intervalo nao usa nenhum termo da lista de suspeitos).
+
+=== Rodando cenario scenario_b ===
+  id: B
+  title: Wordlist adulterada (uma palavra trocada)
+  detected: True
+  hashing_manifest_diff: True
+  wordlist_check_ok: True
+  wordlist_matches_known_official_hash: False
+  wordlist_hash_check_message: hash NAO bate: verificador calculou 946f3172716697166ba71eff7f83f7bdcd66943a5c6818bdc97426e94ed6aa9a, esperava 2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda (wordlist pode ter sido adulterada, ou e uma wordlist diferente/mais nova -- investigue antes de confiar)
+  note: wordlist_check.KNOWN_OFFICIAL_SHA256 e um valor EMBUTIDO NO PROPRIO VERIFICADOR (nao lido de nenhum arquivo do EntropyForge), entao ele pega isso mesmo que um atacante tenha adulterado TANTO o source quanto o manifesto de referencia usado por hashing.py.
+
+=== Rodando cenario scenario_c ===
+  id: C
+  title: .pyz adulterado APOS o build (artefato de distribuicao comprometido)
+  detected: True
+  pyz_compare_to_source_ok: False
+  unexpected_in_pyz: ('entropyforge/_mirror_payload.py',)
+  note: compare_pyz_to_source detecta isso pois compara o .pyz CONTRA A ARVORE-FONTE, nao contra si mesmo -- pega o modulo extra independentemente de como/quando ele foi inserido no artefato.
+
+=== Rodando cenario scenario_d ===
+  id: D
+  title: Script de build adulterado (source e wordlist permanecem limpos)
+  detected: True
+  pyz_compare_to_source_ok: False
+  unexpected_in_pyz: ('entropyforge/_build_backdoor.py',)
+  note: check_build_determinism (Fase 5) NAO pegaria isso -- o build adulterado e perfeitamente deterministico (insere o mesmo arquivo toda vez). Quem pega e compare_pyz_to_source, que nao se importa em COMO o .pyz foi gerado, so no que esta dentro dele comparado ao source de confianca.
+
+=== Rodando cenario scenario_e ===
+  id: E
+  title: Pacote impostor (copia com mesmo nome, combine.py com ordem A/B trocada)
+  detected: True
+  hashing_manifest_diff_vs_trusted_reference: True
+  bip39_compare_mismatch: False
+  note: EntropyForge nao tem NENHUMA dependencia de terceiros (so biblioteca padrao) -- isso elimina o typosquatting classico de pacotes PyPI como vetor de ataque a ele MESMO. O risco residual e um usuario obter uma copia impostora do PROPRIO entropyforge por um canal nao confiavel; a unica defesa e ter um manifesto/hash de REFERENCIA obtido por um canal INDEPENDENTE do artefato (nunca 'baixe o programa e o hash do mesmo lugar'). bip39_compare_mismatch e False aqui, de proposito: a alteracao esta em combine.py (ordem a+b trocada), e bip39_compare NUNCA exercita combine.py -- ele so testa entropy_to_mnemonic/mnemonic_to_entropy em entropyforge.bip39. Quem detecta este cenario e SOMENTE o diff de manifesto contra uma referencia de confianca; isso reforca, e nao contradiz, o ponto do Cenario F: um controle com escopo estreito (aqui, so o modulo bip39) nao pega alteracoes fora do seu escopo, mesmo quando elas estao em outro arquivo do caminho critico.
+
+=== Rodando cenario scenario_f ===
+  id: F
+  title: Codigo malicioso em modulo 'irrelevante' (report.py, fora do caminho critico)
+  detected: True
+  hashing_manifest_diff: True
+  static_scan_new_findings: True
+  static_scan_new_categories: ['rede']
+  bip39_compare_mismatch: False
+  note: bip39_compare NAO pega isso (report.py esta fora do escopo dessa comparacao) -- e exatamente o ponto do cenario: um controle focado so no 'caminho critico' deixa passar um backdoor em qualquer outro arquivo do MESMO pacote, que roda com os MESMOS privilegios. O que pega e (a) o diff de manifesto contra uma referencia de confianca cobrindo TODOS os arquivos, sem excecao, e (b) o scanner estatico, que encontra o import de socket independentemente de qual arquivo ele esta.
+
+=== MATRIZ RESUMO ===
+ID   DETECTADO?   TITULO
+A    True         Uma linha alterada no source (dice.py, fora do caminho critico)
+B    True         Wordlist adulterada (uma palavra trocada)
+C    True         .pyz adulterado APOS o build (artefato de distribuicao comprometido)
+D    True         Script de build adulterado (source e wordlist permanecem limpos)
+E    True         Pacote impostor (copia com mesmo nome, combine.py com ordem A/B trocada)
+F    True         Codigo malicioso em modulo 'irrelevante' (report.py, fora do caminho critico)
