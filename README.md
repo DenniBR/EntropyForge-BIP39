@@ -58,7 +58,7 @@ protege, e o que não protege).
 | [`docs/AUDIT.md`](docs/AUDIT.md) | Guia de auditoria: hashes, ordem de leitura, invariantes e onde cada um é testado |
 | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Como operar com segurança, passo a passo, incluindo a nota sobre passphrase BIP-39 |
 | [`docs/PLATFORM_SUPPORT.md`](docs/PLATFORM_SUPPORT.md) | Matriz de suporte a plataformas: Linux/Tails/Debian live (suportado), Windows (avaliado, não recomendado), Windows XP (não suportada) |
-| [`docs/GENERATION_CEREMONY.md`](docs/GENERATION_CEREMONY.md) | Os 15 passos da cerimônia de geração offline, do boot ao desligamento |
+| [`docs/GENERATION_CEREMONY.md`](docs/GENERATION_CEREMONY.md) | Os passos A–P da cerimônia de geração, em duas máquinas (preparo conectado + geração offline), cada um rotulado explicitamente |
 | [`docs/WALLET_IMPORT_TEST.md`](docs/WALLET_IMPORT_TEST.md) | Teste manual de importação em uma carteira externa (Sparrow), com uma mnemonic inteiramente fictícia, para confirmar a interoperabilidade BIP-39/BIP-32 |
 | [`docs/RELEASE_SECURITY_CHECKLIST.md`](docs/RELEASE_SECURITY_CHECKLIST.md) | Checklist rápido pré-geração (sem exibir nenhum segredo) |
 | [`docs/VERIFY.md`](docs/VERIFY.md) | HOWTO prático: como rodar `make verify-release`/`verify_release.py` e o que o resultado prova (e não prova) |

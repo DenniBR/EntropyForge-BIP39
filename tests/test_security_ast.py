@@ -31,6 +31,7 @@ FORBIDDEN_MODULES = {
     "ctypes",
     "logging",
     "asyncio",  # traz event loops de rede; nao usado neste projeto
+    "tkinter",  # unica via da bibl. padrao para clipboard; nunca usado (Fase E)
 }
 
 
@@ -62,6 +63,30 @@ class NoForbiddenImportsTests(unittest.TestCase):
         # lugar errado e o teste "passando" por nao encontrar nada).
         files = [p for p in PACKAGE_DIR.rglob("*.py") if "__pycache__" not in p.parts]
         self.assertGreaterEqual(len(files), 10)
+
+
+class NoEnvironmentVariableUsageTests(unittest.TestCase):
+    """Fase E (auditoria de manuseio de segredos, canal 'variaveis de
+    ambiente'): nenhum modulo de `entropyforge/` le `os.environ` nem
+    chama `os.getenv`/`os.putenv` -- uma variavel de ambiente "magica" que
+    alterasse o comportamento do programa seria um canal de ataque
+    invisivel a qualquer teste de resposta conhecida (ver
+    docs/INDEPENDENT_VERIFIER.md, backdoors condicionais #09/#13).
+
+    Isto ja era verificado ad-hoc por um script de red team (Fase D,
+    `redteam/scripts/cli_fuzz.py`, item 8) -- promovido aqui a teste de
+    regressao permanente."""
+
+    def test_no_environ_or_getenv_usage(self):
+        violations = []
+        for path in sorted(PACKAGE_DIR.rglob("*.py")):
+            if "__pycache__" in path.parts:
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Attribute) and node.attr in ("environ", "getenv", "putenv", "unsetenv"):
+                    violations.append((path.relative_to(PACKAGE_DIR.parent), node.attr, node.lineno))
+        self.assertEqual(violations, [], f"uso de variavel de ambiente encontrado: {violations}")
 
 
 if __name__ == "__main__":

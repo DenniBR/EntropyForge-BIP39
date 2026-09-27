@@ -10,46 +10,58 @@
 > (dados públicos), nunca gerando um mnemonic de verdade só para testar o
 > fluxo.
 
-Existem duas formas de seguir esta cerimônia:
+## Duas máquinas, duas fases
 
-- **Manual**, passo a passo, exatamente como descrito abaixo — dá
-  controle e visibilidade total sobre cada etapa;
+Esta cerimônia usa **duas máquinas fisicamente separadas**, nunca uma só:
+
+- **Máquina de PREPARO** — pode estar conectada à internet (precisa
+  estar, ao menos para clonar o repositório). Todo o trabalho de
+  verificação e build acontece aqui. **Nunca digite lançamentos de dado
+  reais nesta máquina.**
+- **Máquina de GERAÇÃO** — permanentemente offline, idealmente nunca
+  conectada à internet em momento algum. É aqui, e só aqui, que o
+  mnemonic real é gerado.
+
+A transferência entre as duas é sempre por **mídia física** (pendrive),
+**nunca por rede** — mesmo que as duas máquinas estejam na mesma sala.
+
+Cada passo abaixo é rotulado **[CONECTADA]** (só faz sentido/só pode
+acontecer na máquina de preparo, com rede disponível), **[OFFLINE]** (deve
+acontecer já com toda rede desligada — na máquina de geração, ou na
+própria máquina de preparo se você optar por usar só uma máquina com a
+rede desligada durante os passos F–H) ou **[FÍSICO]** (uma ação no mundo
+real, não em um terminal).
+
+Existem duas formas de seguir os passos A–G (a fase de preparo):
+
+- **Manual**, exatamente como descrito abaixo;
 - **Semi-automatizada**, usando `tools/preflight_and_generate.py`, que
-  automatiza os passos 3–7 (verificação de código, build, `.pyz`,
-  independent-verifier, e `selftest`) e só invoca `generate` se todos
-  passarem — ver a nota ao final de cada uma dessas seções.
+  automatiza a verificação de código/build/`.pyz`/independent-verifier/
+  `selftest` e só invoca `generate` se tudo passar (ver a nota ao final
+  da fase de preparo).
 
-## Os 15 passos
+---
 
-### 1. Máquina offline
+## Fase 1 — Preparo (máquina CONECTADA)
 
-Use um computador **dedicado**, sem conexão Wi-Fi/Ethernet/Bluetooth
-ativa — idealmente um que nunca foi (e nunca será) conectado à internet.
-Ver `docs/OPERATIONS.md` §1. `entropyforge generate` verifica isso
-automaticamente (`guard.check_offline`) e se recusa a continuar se
-detectar uma interface ativa — mas essa checagem só vê o que o *sistema
-operacional* reporta; um SO comprometido que mentisse sobre isso não
-seria pego (ver `docs/THREAT_MODEL.md`, "sistema operacional
-comprometido"). A desconexão física é a garantia real.
+### A. [CONECTADA] Obter o código-fonte
 
-### 2. Sistema live verificável
+```sh
+git clone <url-do-repositorio>
+cd EntropyForge-BIP39
+git log -1 --format=%H   # anote o commit exato
+```
 
-Prefira um sistema operacional live (ex.: Tails) iniciado de uma mídia
-cuja assinatura/hash você conferiu antes de gravar. Isto está **fora do
-alcance de qualquer software deste repositório** — é a raiz de confiança
-sobre a qual tudo mais é construído (ver `docs/INDEPENDENT_VERIFIER.md`
-§9, linha "Firmware / BIOS / UEFI" e "Hardware").
+### B. [CONECTADA ou OFFLINE] Revisão do código-fonte
 
-### 3. Verificação do código-fonte
+Revise, no mínimo, os módulos críticos na ordem sugerida por
+`docs/AUDIT.md` §3 (`dice.py`, `wordlist.py`+`bip39.py`, `osrng.py`+
+`combine.py`, `guard.py`, ...). Se você já revisou esta versão exata
+antes (mesmo commit), pode pular a releitura completa, mas confirme o
+hash do commit contra o que lembra de ter revisado. Esta etapa não
+depende de rede — pode ser feita com a rede já desligada, se preferir.
 
-Clone o repositório (ou confirme que já tem uma cópia) e revise, no
-mínimo, os módulos críticos na ordem sugerida por `docs/AUDIT.md` §3
-(`dice.py`, `wordlist.py`+`bip39.py`, `osrng.py`+`combine.py`, ...). Se
-você já revisou esta versão exata antes (mesmo commit), pode pular a
-releitura completa, mas confirme o hash do commit (`git log -1
---format=%H`) contra o que você lembra de ter revisado.
-
-### 4. Verificação do build
+### C. [CONECTADA ou OFFLINE] Build e verificação de reprodutibilidade
 
 ```sh
 make build   # gera entropyforge.pyz a partir do source local
@@ -57,121 +69,194 @@ make repro   # confirma que o build e reprodutivel (duas builds, hashes iguais)
 ```
 
 Nunca baixe um `.pyz` pré-construído de qualquer fonte — construa
-localmente, a partir do código que você revisou no passo 3
-(`docs/AUDIT.md` §7).
+localmente, a partir do código revisado no passo B. Este passo não
+precisa de rede.
 
-### 5. Verificação do `.pyz`
-
-Compare o artefato construído no passo 4 contra o source-tree, byte a
-byte, usando o **independent-verifier** (não as próprias ferramentas do
-EntropyForge — ver `docs/INDEPENDENT_VERIFIER.md` §1 para o porquê):
+### D. [CONECTADA ou OFFLINE] Montagem e verificação do release
 
 ```sh
-cd independent-verifier
-python3 -B -c "
-from pathlib import Path
-from verifier.pyz_inspect import compare_pyz_to_source, check_bootstrap_main
-r = compare_pyz_to_source(Path('../entropyforge.pyz'), Path('../entropyforge'))
-print('bate com o source:', r.ok, r)
-print(check_bootstrap_main(Path('../entropyforge.pyz')))
-"
+make release          # gera MANIFEST.txt e monta release/ (o .pyz + docs)
+make verify-release   # reconfere tudo do zero; DEVE imprimir PASS
 ```
 
-Se `r.ok` for `False`, **pare** — o artefato não corresponde ao source
-revisado.
+Isto substitui (e automatiza) a comparação manual `.pyz`-vs-source e a
+checagem de hash da wordlist contra o valor oficial embutido no
+verificador — ver `docs/VERIFY.md` para o que exatamente `PASS` significa
+(e não significa). Se o resultado for `FAIL`, **pare** — não continue
+para a máquina de geração com um release que falhou a verificação.
 
-### 6. Execução do independent-verifier
-
-Rode a suíte completa do verificador independente (não só a checagem do
-`.pyz`) contra a sua cópia:
+### E. [CONECTADA ou OFFLINE] Suíte de testes completa
 
 ```sh
-cd independent-verifier && python3 -B -m unittest discover -s tests -v
+make test
+cd independent-verifier && python3 -B -m unittest discover -s tests -v && cd ..
 ```
 
-Todos os testes devem passar. Isto inclui a verificação independente da
-wordlist (hash embutido no próprio verificador, não lido do
-EntropyForge), a comparação BIP-39 cruzada, e a checagem de build
-reprodutível.
-
-**Nota:** os passos 3–6 são exatamente o que `tools/preflight_and_generate.py`
-automatiza (exceto a revisão manual de código do passo 3, que continua
-sendo humana por natureza). Rodar
+Todos os testes devem passar. **Nota:** os passos C–E são exatamente o
+que `tools/preflight_and_generate.py` automatiza (exceto a revisão manual
+de código do passo B, que continua sendo humana por natureza):
 
 ```sh
 python3 tools/preflight_and_generate.py --pyz entropyforge.pyz -- generate
 ```
 
-executa os passos 5 (comparação `.pyz` vs. source), parte do 6 (checagem
-de wordlist contra o hash oficial embutido) e o passo 7 (`selftest`)
-automaticamente, e só invoca `generate` (passo 8 em diante) se tudo
-passar — nunca prossegue silenciosamente em caso de falha.
+### F. [FÍSICO] Transferência para a máquina de geração
 
-### 7. Selftest
+Copie **`entropyforge.pyz`** (o arquivo dentro de `release/`, ou o
+`release/` inteiro se quiser levar a documentação junto) para um pendrive
+e leve fisicamente até a máquina de geração. Nunca transfira por rede
+(SSH, e-mail, nuvem, compartilhamento de rede) — isso reintroduziria
+exatamente o canal que a máquina de geração existe para não ter.
+
+### G. [OFFLINE] Verificação pós-transferência
+
+Na máquina de geração, **antes** de gerar qualquer mnemonic real:
 
 ```sh
 python3 -I -B entropyforge.pyz selftest
 ```
 
-Deve reportar `RESULTADO GERAL: PASSOU`. Lembre-se do limite documentado
-em `docs/AUDIT.md` §6: isto verifica corretude computacional, não
-ausência de backdoors — é uma checagem de sanidade sobre uma instalação
-em que você **já** confia por causa dos passos 3–6, não um substituto
-para eles.
+Deve reportar `RESULTADO GERAL: PASSOU`. Isto confirma que a transferência
+não corrompeu o arquivo e que os testes de resposta conhecida (KATs)
+passam nesta máquina especificamente — não substitui a verificação da
+fase de preparo (que exige o código-fonte, normalmente indisponível numa
+máquina de geração minimalista), é uma checagem adicional.
 
-### 8. Coleta do d6
+---
 
-Tenha um d6 físico de boa qualidade, papel/caneta ou placa de metal
-prontos, e um ambiente fisicamente privado (sem câmeras, sem ninguém
-olhando por cima do ombro) — ver `docs/OPERATIONS.md` §1. Se quiser medir
-o viés do seu dado antes de usá-lo para valer, rode `calibrate` com uma
-amostra grande e descartável (`docs/OPERATIONS.md` §4) — os lançamentos
-de calibração NUNCA são usados para gerar uma carteira.
+## Fase 2 — Geração (máquina OFFLINE, permanentemente desconectada)
 
-### 9. Coleta de B
+### H. [FÍSICO] Desligar toda a rede
 
-`entropyforge generate` lê 256 bits do CSPRNG do sistema operacional
-(`os.getrandom`) automaticamente, sem nenhuma ação do operador. Se essa
-leitura falhar por qualquer motivo, o programa aborta sem gerar nada (ver
-`entropyforge/osrng.py`, fail-closed, sem fallback).
+Desligue Wi-Fi, Ethernet e Bluetooth — pelo hardware sempre que possível
+(botão físico, remoção do cabo), não só pelo sistema operacional.
+`entropyforge generate` verifica isto automaticamente
+(`guard.check_offline`) e se recusa a continuar se detectar uma interface
+ativa — mas essa checagem só vê o que o *sistema operacional* reporta; um
+SO comprometido que mentisse sobre isso não seria pego (ver
+`docs/THREAT_MODEL.md`). A desconexão física é a garantia real. Ver
+`docs/PLATFORM_SUPPORT.md` — esta checagem automática só existe em Linux;
+em outras plataformas a responsabilidade é inteiramente manual.
 
-### 10. Combinação
+### I. [FÍSICO] Preparar o ambiente e o dado físico
 
-`E = SHA-256(A ‖ B)`, calculada automaticamente. Nem `A`, `B`, nem `E` são
-exibidos em nenhum momento.
+Um d6 de boa qualidade, papel/caneta ou placa de metal prontos, e um
+ambiente fisicamente privado (sem câmeras, sem ninguém olhando por cima
+do ombro) — ver `docs/OPERATIONS.md` §1 e a seção "A tela como raiz de
+confiança residual" abaixo. Se quiser medir o viés do seu dado antes de
+usá-lo para valer, rode `calibrate` com uma amostra grande e descartável
+(`docs/OPERATIONS.md` §4) — os lançamentos de calibração NUNCA são usados
+para gerar uma carteira.
 
-### 11. Geração BIP-39
+### J. [OFFLINE] Rodar `generate`
 
-O mnemonic de 24 palavras é derivado de `E` automaticamente.
+```sh
+python3 -I -B entropyforge.pyz generate
+```
 
-### 12. Anotação manual
+Repete o `selftest` e a checagem de rede automaticamente.
+
+### K. [OFFLINE] Coleta dos lançamentos do d6
+
+Digite os lançamentos pedidos quando solicitado — colados
+(`"416235"`) ou separados por espaço (`"4 1 6 2 3 5"`), nunca os dois
+formatos juntos. A digitação não aparece na tela.
+
+### L. [OFFLINE] Coleta de B, combinação e geração BIP-39 (automático)
+
+`generate` lê 256 bits do CSPRNG do sistema operacional
+automaticamente — se essa leitura falhar, o programa aborta sem gerar
+nada (fail-closed, sem fallback). Em seguida calcula `E = SHA-256(A ‖ B)`
+e deriva o mnemonic de 24 palavras. Nem `A`, `B`, nem `E` são exibidos em
+nenhum momento.
+
+### M. [OFFLINE] Anotação manual
 
 O mnemonic aparece **uma única vez**, numa tela alternativa do terminal
 (fora do histórico de rolagem). Anote com cuidado, em papel ou metal,
 ANTES de pressionar Enter — ele não será mostrado de novo.
 
-### 13. Conferência
+### N. [OFFLINE] Conferência (opcional)
 
-Opcionalmente, redigite as 24 palavras quando o programa perguntar; ele
-confirma "confere"/"não confere" sem nunca revelar qual palavra diverge
-(para não vazar informação parcial sobre o mnemonic a quem estiver
-observando a tela nesse momento).
+Redigite as 24 palavras quando o programa perguntar; ele confirma
+"confere"/"não confere" sem nunca revelar qual palavra diverge (para não
+vazar informação parcial a quem estiver observando a tela nesse momento).
 
-### 14. Limpeza
+### O. [FÍSICO] Limpeza
 
 O programa sobrescreve os buffers internos de `A`, `B`, `E` com zeros
-antes de sair (`_zero()` em `cli.py`) — best-effort, não uma garantia
-absoluta (ver `docs/DESIGN.md` §2.1 sobre limitações de linguagens
-gerenciadas). Feche o terminal. Se o sistema tiver swap ativo, o programa
-já terá avisado — trate a máquina como potencialmente tendo tocado o
-disco de qualquer forma.
+antes de sair — best-effort, **não uma garantia absoluta** (ver "O que
+este programa NÃO promete sobre memória", abaixo). Feche o terminal. Se o
+sistema tiver swap ativo, o programa já terá avisado — trate a máquina
+como potencialmente tendo tocado o disco de qualquer forma.
 
-### 15. Desligamento
+### P. [FÍSICO] Desligamento
 
 Desligue a máquina completamente (não hibernar/suspender — isso persiste
 a memória no disco). Espere alguns minutos antes de religar, se possível
 (mitiga parcialmente ataques de cold-boot à RAM, sem garantia —
 `docs/OPERATIONS.md` §6).
+
+---
+
+## A tela como raiz de confiança residual
+
+Depois de todas as verificações de código, build e artefato, **a tela do
+operador continua sendo uma raiz de confiança residual que nenhum
+software deste projeto consegue verificar ou proteger.** Isto é
+deliberado e honesto, não um descuido: qualquer coisa que capture o que
+aparece na tela no momento em que o mnemonic é exibido — uma câmera
+apontada para o monitor, um keylogger de hardware entre o teclado e a
+máquina, um software de captura de tela já instalado no sistema
+operacional, um segundo monitor espelhado, um observador humano por cima
+do ombro — vê exatamente o mesmo mnemonic que o operador vê,
+independentemente de qualquer garantia que `entropyforge` ofereça sobre
+não escrever em disco ou não usar rede. Nenhuma auditoria de código, hash
+de build, ou verificação de artefato reduz esse risco: ele existe no
+ambiente físico ao redor da tela, não no software. Mitigação é
+inteiramente operacional (ambiente privado, sem câmeras, máquina cuja
+integridade de hardware você confia) — ver `docs/THREAT_MODEL.md` e
+`docs/INDEPENDENT_VERIFIER.md` §10, categoria de atacante 7 ("observa o
+terminal").
+
+## O que este programa NÃO promete sobre memória
+
+O `bytearray` que guarda `A`, `B` e `E` é sobrescrito com zeros antes do
+programa sair (`_zero()` em `cli.py`) — isso é best-effort, não uma
+garantia. Em um interpretador Python gerenciado, cópias intermediárias de
+dados sensíveis (por exemplo, o `str` retornado por `getpass.getpass()`
+com os dígitos do dado, ou o `str` do mnemonic antes de ser dividido em
+palavras) podem já ter existido como objetos imutáveis que o coletor de
+lixo do CPython pode ou não já ter reaproveitado a memória, sem que o
+programa tenha qualquer controle direto sobre o momento disso acontecer.
+Este projeto nunca afirma "zeração garantida de memória" — apenas que
+faz o que é razoavelmente possível na linguagem escolhida, e documenta
+essa limitação em vez de prometer algo que não pode cumprir (ver
+`docs/DESIGN.md` sobre a escolha de Python puro).
+
+## Sobre a passphrase BIP-39 (25ª palavra)
+
+`entropyforge` **nunca gera, sugere, nem pede** uma passphrase BIP-39
+(também chamada de "25ª palavra"). Se você quiser usar uma, ela é
+inteiramente manual e separada deste programa: você mesmo a escolhe (ou a
+gera por outro meio de sua confiança), memoriza ou anota separadamente do
+mnemonic, e a digita na carteira externa (Sparrow, hardware wallet, etc.)
+no momento de importar o mnemonic — nunca aqui. Ver `docs/OPERATIONS.md`
+§7 para a discussão completa (incluindo por que uma passphrase errada
+produz uma carteira DIFERENTE, sem aviso, em vez de um erro).
+
+## O que este projeto nunca vai ter (minimização de superfície de ataque)
+
+Deliberadamente, e não por limitação técnica: **nenhuma exportação de QR
+code, nenhuma funcionalidade de rede, nenhuma integração com exchanges ou
+serviços de nuvem.** Cada uma dessas funcionalidades adicionaria uma
+superfície de ataque nova (um QR code pode ser fotografado/reconstruído à
+distância; qualquer código de rede é, por definição, incompatível com o
+modelo de ameaça "totalmente offline"; qualquer integração externa exige
+confiar em mais um sistema) sem necessidade: a única saída deste programa
+é o mnemonic mostrado uma vez na tela, para ser anotado à mão. Ver
+`docs/DESIGN.md` seção "D6. O que não é implementado no produto" para a
+lista completa e o raciocínio de cada exclusão.
 
 ## Artefatos que precisam ser verificados ANTES da primeira geração real
 
@@ -181,17 +266,13 @@ por versão do código usada, antes de confiar no resultado de `generate`:
 1. o commit exato do source-tree (`git log -1 --format=%H`) e uma
    revisão humana de, no mínimo, `dice.py`, `wordlist.py`, `bip39.py`,
    `osrng.py`, `combine.py`, `guard.py`;
-2. o hash do `.pyz` construído localmente reproduz entre duas builds
-   (`make repro`);
-3. o `.pyz` bate byte a byte contra o source-tree revisado
-   (`verifier.pyz_inspect.compare_pyz_to_source`, independent-verifier);
-4. a wordlist embutida bate com o hash oficial conhecido (embutido de
-   forma independente em `verifier.wordlist_check`, não lido de nenhum
-   arquivo do EntropyForge);
-5. a suíte de testes completa do EntropyForge (`make test`) e do
-   independent-verifier (`cd independent-verifier && python3 -B -m
-   unittest discover -s tests`) passam inteiramente;
-6. `selftest` do `.pyz` construído reporta `PASSOU`.
+2. `make verify-release` (ou `make repro` + a comparação manual
+   `.pyz`-vs-source) reporta sucesso;
+3. a suíte de testes completa do EntropyForge (`make test`) e do
+   independent-verifier passam inteiramente;
+4. `selftest` do `.pyz` transferido para a máquina de geração reporta
+   `PASSOU`.
 
 Ver `docs/RELEASE_SECURITY_CHECKLIST.md` para a versão em formato de
-checklist rápido desta mesma lista.
+checklist rápido desta mesma lista, e `docs/VERIFY.md` para o guia
+detalhado de `verify-release`.

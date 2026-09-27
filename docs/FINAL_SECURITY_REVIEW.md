@@ -453,7 +453,9 @@ kernel. Este processo revelou e corrigiu o achado #4 (seção 3).
 
 ## 11. Cerimônia de geração e automação de pré-condições
 
-`docs/GENERATION_CEREMONY.md` (15 passos, do boot ao desligamento) e
+`docs/GENERATION_CEREMONY.md` (15 passos, do boot ao desligamento — desde
+a Fase E, reestruturado em passos A–P com rotulagem explícita de
+conectado/offline e separação em duas máquinas) e
 `docs/RELEASE_SECURITY_CHECKLIST.md` (checklist rápido, nunca exibe
 segredos) foram escritos nesta fase.
 

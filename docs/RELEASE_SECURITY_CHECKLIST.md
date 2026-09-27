@@ -33,6 +33,14 @@
 
 ## Build e verificação do artefato
 
+Forma rápida (recomendada — automatiza os itens abaixo):
+
+- [ ] **Release verificado**: `make release && make verify-release`
+      imprime `PASS` (ver `docs/VERIFY.md` para o que isso prova e não
+      prova).
+
+Ou manualmente, item a item:
+
 - [ ] **Build**: `make build` executado localmente, a partir do código
       revisado (nunca um `.pyz` baixado de terceiros).
 - [ ] **Hash/reprodutibilidade**: `make repro` confirma que duas builds

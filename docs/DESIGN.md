@@ -202,7 +202,34 @@ Derivação de seed (PBKDF2) e passphrase ficam fora do fluxo `generate`
 (a carteira do usuário faz essa parte); `mnemonic_to_seed` existe só para
 testes contra os vetores oficiais. BIP-32/endereços exigiriam secp256k1 e
 aumentariam a superfície auditável sem necessidade para o objetivo deste
-projeto.
+projeto (a interoperabilidade com BIP-32 é validada em desenvolvimento,
+nunca em runtime — ver `tests/test_dev_cross_check_bip32.py` e
+`docs/WALLET_IMPORT_TEST.md`).
+
+**Exclusões deliberadas de superfície de ataque (Fase E)** — nenhuma
+destas é uma limitação técnica; são decisões de projeto, e permanecem
+assim de propósito:
+
+- **Nenhuma exportação de QR code.** Um QR code do mnemonic poderia ser
+  fotografado ou reconstruído à distância por qualquer câmera com linha
+  de visada para a tela — um canal de vazamento que este projeto não
+  precisa introduzir para cumprir seu objetivo (o mnemonic já é mostrado
+  em texto para anotação manual; um QR code não adiciona nada além de um
+  novo jeito de capturá-lo remotamente).
+- **Nenhuma funcionalidade de rede**, de qualquer tipo — nem para
+  "conveniência" (ex.: sincronizar configurações), nem para verificação
+  online de nada. Isto não é negociável: é incompatível, por definição,
+  com o modelo de ameaça "totalmente offline" que todo o resto do projeto
+  pressupõe (`docs/THREAT_MODEL.md`, `entropyforge.guard.check_offline`).
+- **Nenhuma integração com exchanges, serviços de nuvem, ou qualquer API
+  externa.** Cada integração desse tipo exigiria confiar em mais um
+  sistema (e na rede necessária para alcançá-lo), o oposto exato do
+  objetivo de minimizar a superfície de confiança deste projeto.
+
+Qualquer proposta futura de adicionar uma dessas três categorias deveria
+ser tratada como uma mudança de escopo do projeto inteiro, não uma
+funcionalidade incremental — ver `docs/GENERATION_CEREMONY.md`, "O que
+este projeto nunca vai ter".
 
 ---
 

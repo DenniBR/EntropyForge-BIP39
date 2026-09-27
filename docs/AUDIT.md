@@ -172,3 +172,28 @@ confia ser a correta — não um substituto para essa confiança.
   em nenhum lugar do repositório. Todos os valores de teste são os
   vetores oficiais públicos da especificação BIP-39, ou padrões triviais
   (`bytes(32)`, `bytes(range(32))`) claramente não-secretos.
+
+## 8. Auditoria de manuseio de segredos, canal por canal (Fase E)
+
+Esta tabela cobre, explicitamente, cada canal pelo qual `A`, `B`, `E`, a
+sequência de dado ou o mnemonic poderiam vazar. "Bloqueado" significa que
+existe um controle ativo (não só "não deveria acontecer"); "Nunca usado"
+significa que o canal simplesmente não existe no código (verificado
+estaticamente); "Fora de controle" significa uma limitação estrutural
+honesta, sem alegação de proteção.
+
+| Canal | Status | Evidência | Limitação conhecida |
+|---|---|---|---|
+| stdout (abstrato, `TerminalIO.write`) | Nunca contém A/B/E/sequência/hex | `tests/test_cli_generate.py::SuccessfulGenerateTests::test_no_secret_hex_leaks_anywhere` | nenhuma dentro do escopo testado |
+| stdout/stderr REAIS do processo | Idem, capturados via `redirect_stdout`/`redirect_stderr` E via `pty` num processo filho de verdade | mesmo teste acima + `tests/test_generate_interruption_real_subprocess.py` | nenhuma |
+| logs | Nunca usado — módulo `logging` nunca importado | `tests/test_security_ast.py::NoForbiddenImportsTests` | nenhuma |
+| exceções/tracebacks | Erros esperados (CSPRNG indisponível, entrada inválida) são tratados explicitamente, sem propagar dados sensíveis na mensagem | `tests/test_generate_interruption_safety.py`, `tests/test_generate_interruption_real_subprocess.py` | uma exceção NÃO PREVISTA (bug não descoberto) poderia, em tese, incluir uma variável local sensível no traceback — mitigado por manter o escopo de vida de `A`/`B`/`E` o mais curto possível e sobrescrevê-los assim que usados, nunca eliminado por completo |
+| clipboard | Nunca usado — nenhuma API de clipboard na biblioteca padrão sem `tkinter` (nunca importado) ou um subprocesso externo (bloqueado pelo guard) | `tests/test_security_ast.py` (import de `tkinter` proibido) + `tests/test_guard.py` (subprocess bloqueado) | nenhuma |
+| arquivos (escrita) | Bloqueado em tempo de execução — todo `open()`/`os.open()` com flags de escrita levanta `GuardViolation`, exceto `/dev/tty` (não é armazenamento persistente) | `tests/test_guard.py::AuditHookBlocksFileWriteTests`, `AuditHookAllowsDevTtyTests` | um bug de dependência nativa que escrevesse via uma chamada de sistema fora do que os audit hooks do Python cobrem não seria pego — não há dependências nativas neste projeto |
+| tempfile | Bloqueado — `tempfile.mkstemp`/`mkdtemp` na lista de eventos bloqueados do guard | `entropyforge/guard.py::_BLOCKED_EVENTS`, exercitado indiretamente pelos testes de escrita de arquivo | nenhuma |
+| cache de bytecode (`.pyc`) | Bloqueado — `sys.dont_write_bytecode = True` em `guard.activate()`, antes de qualquer import do pacote | `entropyforge/guard.py::activate` | nenhuma (mas note que rodar sem `-B` antes de `guard.activate()` ativar poderia gravar um `.pyc` da PRIMEIRA importação — mitigado por `guard.activate()` ser chamado antes de importar `cli`, ver `__main__.py`) |
+| swap | Fora de controle — o programa apenas AVISA se detectar swap ativo (`/proc/swaps`), nunca pode impedir o kernel de paginar memória | `entropyforge/cli.py::_environment_checks` | estrutural — nenhum processo em espaço de usuário controla a própria paginação; mitigação é operacional (usar um sistema live sem swap, ex. Tails) |
+| variáveis de ambiente | Nunca usado — nenhuma leitura de `os.environ`/`os.getenv` em `entropyforge/` | `tests/test_security_ast.py::NoEnvironmentVariableUsageTests` | nenhuma |
+| argv (linha de comando) | `generate`/`calibrate` nunca aceitam a sequência de dado nem o mnemonic por argumento — só `vector` aceita dados PÚBLICOS explícitos, documentado para nunca usar com fundos reais | `tests/test_cli_generate.py` (exige TTY), `docs/DESIGN.md` §2.4 | nenhuma dentro do uso pretendido; um operador que colar dados reais nos argumentos de `vector` por engano os exporia (histórico do shell) — por isso `vector` é rotulado como modo de teste, nunca o fluxo recomendado |
+| core dumps | Bloqueado (melhor esforço) — `RLIMIT_CORE=0` em `guard.activate()` | `entropyforge/guard.py::_disable_core_dumps`; `tests/test_generate_interruption_real_subprocess.py` confirma nenhum arquivo novo após SIGKILL | `resource.RLIMIT_CORE` não existe fora de POSIX (ver `docs/PLATFORM_SUPPORT.md`, Windows); e mesmo em POSIX, um sinal que o kernel trata com "Core" antes do RLIMIT ser aplicado (nunca deveria acontecer aqui, mas é uma janela teórica de inicialização) não é coberto |
+| memória (zeração) | Melhor esforço, NUNCA garantido | `entropyforge/cli.py::_zero`, chamado logo após uso de `A`/`B`/`E` | **este projeto nunca promete zeração garantida de memória** — objetos Python intermediários (strings imutáveis, por exemplo) podem persistir na memória até o coletor de lixo reaproveitar o espaço, fora do controle direto do programa; ver `docs/GENERATION_CEREMONY.md`, "O que este programa NÃO promete sobre memória" |
