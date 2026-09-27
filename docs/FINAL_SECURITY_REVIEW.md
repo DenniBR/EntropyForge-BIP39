@@ -515,7 +515,11 @@ revisão.
 
 Nenhuma das condições de bloqueio da auditoria está presente:
 
-- ❌ teste crítico falhando — **não há**: 303/303 testes passam.
+- ❌ teste crítico falhando — **não há**: todos os testes passam (231
+  testes em `tests/` + 129 em `independent-verifier/tests/` no estado
+  atual do repositório, após a Fase E — recontagem em `docs/AUDIT.md` §1
+  e `docs/PHASE_E_TEST_MATRIX.md`; o valor "303/303" era o total no
+  momento em que esta seção foi escrita, na Fase D).
 - ❌ divergência BIP-39 — **não há**: confirmado contra vetores oficiais,
   implementação de referência, e implementação independente.
 - ❌ encoding ambíguo — **não há**: bijeção confirmada exaustivamente

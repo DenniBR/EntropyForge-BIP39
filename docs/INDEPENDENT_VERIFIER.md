@@ -460,10 +460,13 @@ Para um usuário que queira o nível de confiança mais alto praticável:
 ## 15. Como reproduzir esta auditoria
 
 ```bash
-# 1. Rodar a suíte completa do EntropyForge (191 testes apos a Fase D)
+# 1. Rodar a suíte completa do EntropyForge (191 testes apos a Fase D;
+#    231 apos a Fase E -- a contagem cresce a cada fase, rode voce mesmo
+#    para o numero atual em vez de confiar neste comentario)
 python3 -B -m unittest discover -s tests -v
 
-# 2. Rodar a suíte completa do independent-verifier (112 testes apos a Fase D)
+# 2. Rodar a suíte completa do independent-verifier (112 testes apos a
+#    Fase D; 129 apos a Fase E)
 cd independent-verifier && python3 -B -m unittest discover -s tests -v && cd ..
 
 # 3. Reproduzir o laboratório de backdoors (Fase 6-7)

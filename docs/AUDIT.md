@@ -6,7 +6,7 @@ do que consegue ler e executar.
 
 ## 1. Tamanho e escopo
 
-`entropyforge/*.py` soma **2.449 linhas** (contadas com `wc -l`, incluindo
+`entropyforge/*.py` soma **2.668 linhas** (contadas com `wc -l`, incluindo
 comentários e docstrings — que são deliberadamente extensos, para que o
 código explique seu próprio raciocínio matemático inline). Isto é maior
 que a meta informal de ~1.500 linhas do rascunho inicial do design; o
@@ -16,12 +16,15 @@ sem SciPy (`specialfunc.py`), e de uma abstração de E/S (`cli.py`) que
 permite testar o fluxo `generate` de ponta a ponta sem TTY real. Ainda é
 pequeno o suficiente para ser lido por completo em algumas horas.
 
-`tests/*.py` soma bem mais que isso (191 testes) — não precisa ser
+`tests/*.py` soma bem mais que isso (231 testes) — não precisa ser
 auditado com o mesmo rigor que o código de produto, mas é o que dá
 confiança de que o código de produto faz o que diz. Um projeto irmão,
-`independent-verifier/` (112 testes próprios, ver
+`independent-verifier/` (129 testes próprios, ver
 `docs/INDEPENDENT_VERIFIER.md`), verifica boa parte disso de forma
-independente, sem reusar nenhum código deste pacote.
+independente, sem reusar nenhum código deste pacote. (Contagens exatas no
+momento de cada revisão mudam; rode `make test` e a suíte de
+`independent-verifier/` você mesmo para o número atual — ver
+`docs/PHASE_E_TEST_MATRIX.md` para a contagem na Fase E.)
 
 ## 2. Hashes dos arquivos críticos (nesta revisão)
 
@@ -30,25 +33,27 @@ independente, sem reusar nenhum código deste pacote.
 3c4340b0a648fd94de77376f89c76b0aedf5d185cae6a6b3772bf87d565d5a74  entropyforge/__init__.py
 7c61107528434a2f9769c0156ca8c40a3aa722bf68887583069e4cf66da57900  entropyforge/__main__.py
 6955bc7646f9f7ba85a7ee39c1930c45aba17df435db68f1e3df29fa739d3ba0  entropyforge/bip39.py
-5cdb20e41171645226170f0a1cdda4f21c753c503b8f6edb9a3cd98a51dd2e45  entropyforge/cli.py
+6e7a1665db9eddc760d77924afe23b2ce21531a038609fa8fe58799809e48409  entropyforge/cli.py
 5dbd17ff1a3f1d6ffe9cc5c1e41497efe74dbfe156b6567175b9a79dce3ac6bb  entropyforge/combine.py
-64434186558e57261d45a1e6ce0e25a6afc3af6d1c55b646b123aefcca799009  entropyforge/dice.py
+1cb418ff0c8dceefe16bd38d277b7f1a83beaf0d724e928307080090adb6fbde  entropyforge/dice.py
 3d9e8303456ebbaf9b672d48a3b7c28bbea6a7e075386f596866c1606edbf9cb  entropyforge/entropy_calc.py
-1ba12516ce568f5c21b5a48be8d07cfce26d4e79275978abe6a6c296dc995f97  entropyforge/guard.py
+57cf1b070426ed04a2541d8cde2c4c5f7037d6225555272d923383527e398337  entropyforge/guard.py
 5a5641e3715da99f30c2c5c41f56304bbb0bad0cef696224e33c6ffd85b59a73  entropyforge/osrng.py
-3807d5e7aa717830834603a3e3cc18df939ffa5aa70b8f27dc7d625b9273b47b  entropyforge/report.py
+7f487b9c7196d81da58ca38687431d21526b532d587357ac9310ee955769a56f  entropyforge/report.py
 0aa0e3d7a72593aee9771fa8691758c000d0c2dfb1aa7c1a2a5bdd6ed07213ec  entropyforge/selftest.py
 587a9c8f3b190eaaa7f67f4cb651d1c4ba2856f58570df45e09e003430b1c00c  entropyforge/specialfunc.py
 c77a51f3d31100d4d4a58215a82802436eea3f556b1b9742f54afd6f1df3bc3c  entropyforge/stats.py
+172c03920dd3a1b8a098451b92521373239ed8cc30b6f31aec48244453b07675  entropyforge/version.py
 af85bfdcaf6c768f7f5c7da6532527b20d85e73721c94d438bd09fc4da4be2f5  entropyforge/wordlist.py
 ```
 
-(`cli.py`, `__main__.py` e `dice.py` mudaram de hash em relação a
-revisões anteriores deste documento — `cli.py`/`__main__.py` por
-correções de auditoria adversarial anteriores, `dice.py` por uma correção
-de simetria em `decode()` encontrada na revisão de segurança final, ver
-`docs/FINAL_SECURITY_REVIEW.md`. Os hashes acima são os corretos para o
-commit atual.)
+(Recalculados na Fase E: `cli.py`, `dice.py`, `report.py` e `guard.py`
+mudaram — `cli.py`/`dice.py`/`report.py` pelo relatório mínimo
+ACCEPTED/REJECTED e pela normalização de entrada flexível, `guard.py`
+pela correção do bloqueio indevido de `/dev/tty` (ver
+`docs/FINAL_SECURITY_REVIEW.md` seção 17); `version.py` é um arquivo novo
+desta fase. Os hashes acima são os corretos para o commit atual — como
+sempre, recalcule os seus em vez de confiar neste arquivo sozinho.)
 
 Estes hashes valem para o commit atual; `git log -1 --format=%H` no
 repositório diz exatamente qual commit. Não confie neste arquivo sozinho
@@ -83,6 +88,10 @@ acima contra esse arquivo diretamente.
     estruturado em torno de `TerminalIO` justamente para ser auditável e
     testável.
 12. `entropyforge/__main__.py` — o ponto de entrada.
+13. `entropyforge/version.py` (Fase E) — trivial (constantes + um
+    dataclass), mas vale conferir que os cinco números de versão
+    documentados ali (seção "Versionamento formal") realmente
+    correspondem ao que o código faz, não só ao que a docstring alega.
 
 ## 4. Invariantes a verificar (e onde cada um é testado)
 
