@@ -1,0 +1,21 @@
+=== construindo o executavel (legitimo, sem alteracoes) para fuzzing ===
+
+=== fuzz_vector_argv (seed=20260927, N=300) ===
+iteracoes: 300  crashes: 0
+
+=== fuzz_stdin_bytes (seed=20260927, N=100) ===
+iteracoes: 100  crashes: 0
+
+--- construindo executavel limpo (para observacao de processo) ---
+--- construindo executavel com backdoor 01 (stderr exfil) ---
+
+==============================================================================
+Observacao de processo (strace -f): executavel LIMPO vs. BACKDOOR
+==============================================================================
+caso                          network   process   file_write  marcador_no_stdio_real
+LIMPO                         False     False     False       False
+BACKDOOR 01 (stderr)          False     False     False       True
+
+Achado: nenhuma diferenca de syscall de rede/processo/disco entre os dois -- o backdoor exfiltra via STDOUT/STDERR (um descritor de arquivo que o processo JA tinha aberto ao nascer, herdado do pai, nunca uma nova syscall openat/socket/connect), entao e' INVISIVEL para um filtro de syscalls de rede/disco/processo, exatamente como ja documentado para o backdoor 01 no source interpretado (redteam/independent/findings/legit_vs_backdoor_strace_comparison.txt). 'marcador_no_stdio_real' confirma, olhando o STDOUT/STDERR REAIS do processo (nao o log do strace), que o dado FOI de fato vazado pelo backdoor e NAO pelo caso limpo -- mas note que o proprio LOG do strace (`raw_strace_log`) NUNCA teria mostrado essa escrita de qualquer forma, porque o filtro `-e trace=network,openat,...` de `verifier.process_observe.trace_process` nao inclui `write`. Isto e' uma limitacao ja conhecida e documentada do ESCOPO do filtro (feito para rede/disco/processo, nao para auditar o CONTEUDO de stdout/stderr) -- nao uma falha desta observacao: uma exfiltracao por stdout/stderr precisa ser pega por outro mecanismo (aqui, a leitura direta da saida real do processo, como feito acima, ou uma politica operacional de nunca redirecionar a saida deste programa para um canal nao confiavel).
+
+=== RESUMO: 0 problema(s) real(is) encontrado(s) ===

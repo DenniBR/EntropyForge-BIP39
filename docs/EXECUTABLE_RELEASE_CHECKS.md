@@ -202,8 +202,60 @@ separadamente (ex.: keyserver + fingerprint documentado no site do
 projeto), verificável com `gpg --verify` — mais simples de auditar do
 que Authenticode, e funciona igual em Linux/Windows.
 
-## 7. Observação de processo (limpo vs. backdoor)
+## 7. Fuzzing do executável e observação de processo (limpo vs. backdoor)
 
-Ver seção dedicada em `docs/FINAL_SECURITY_REVIEW.md` ("Executable
-Release Security") para o comparativo `strace` completo entre o
-executável limpo e o executável com o backdoor experimental da seção 4.
+Script: `redteam/independent/scripts/fuzz_and_observe_executable.py`.
+Saída completa: `redteam/independent/findings/fuzz_and_observe_executable_output.txt`.
+Ver também `docs/FINAL_SECURITY_REVIEW.md` ("Executable Release
+Security") para a versão resumida deste achado.
+
+**Fuzzing** (mesma metodologia de `redteam/phase_e/scripts/fuzz_final.py`
+— `random.Random` com seed fixa `20260927`, documentada, nunca usada para
+gerar dados reais), contra o **binário compilado real**, não o source:
+
+- `fuzz_vector_argv` (300 iterações): argumentos aleatórios/malformados
+  para `vector` (`--a-digits`/`--b-hex`/`--entropy-hex`/`--mnemonic`
+  com strings aleatórias, incluindo unicode e caracteres de controle) —
+  critério de falha: um traceback Python bruto vazando na saída, ou um
+  travamento.
+- `fuzz_stdin_bytes` (100 iterações): bytes aleatórios brutos (0–255) na
+  entrada padrão de `generate`/`calibrate`/`selftest`/`--version`,
+  processo não-TTY — critério de falha: travamento (timeout) ou o
+  payload de entrada sendo ecoado de volta na saída.
+
+**Resultado: 0 problemas em 400 iterações totais.** Nenhum traceback
+vazado, nenhum travamento, nenhum eco de payload.
+
+**Observação de processo** (`strace -f`, via
+`verifier.process_observe.trace_process`, o mesmo módulo já usado no
+comparativo do source na Fase D): dois executáveis reais construídos
+para este teste — limpo e com o backdoor 01 (exfiltração via `stderr`,
+reaproveitado do laboratório de backdoor da seção 4) — rodando `vector`
+com dados públicos de teste:
+
+| Caso | `network` | `process` | `file_write` | marcador no stdout/stderr real |
+|---|---|---|---|---|
+| Limpo | False | False | False | False |
+| Backdoor 01 (stderr) | False | False | False | **True** |
+
+**Achado, e sua interpretação correta:** as três colunas de syscall
+(rede/processo/escrita em disco) são **idênticas** entre limpo e
+backdoor — o backdoor 01 exfiltra escrevendo num descritor de arquivo
+(`stderr`) que o processo já possuía ao nascer (herdado do pai via
+`fork`/`exec`, não uma nova syscall `openat`/`socket`/`connect`), então é
+estruturalmente invisível para um filtro de `strace` focado em
+rede/disco/processo — exatamente a mesma conclusão já documentada para o
+source interpretado em
+`redteam/independent/findings/legit_vs_backdoor_strace_comparison.txt`.
+A quarta coluna (marcador procurado no **stdout/stderr real capturados
+pelo próprio subprocesso**, não no log do `strace`) é o que de fato
+distingue os dois casos — e ela distingue corretamente. **Limitação
+honesta:** o log bruto do `strace` (`raw_strace_log`) nunca teria
+mostrado essa escrita de qualquer forma, porque o filtro `-e
+trace=network,openat,...` usado por `trace_process` não inclui `write` —
+isso não é uma falha desta observação, é o escopo deliberado da
+ferramenta (auditar rede/disco/processo, não o conteúdo de stdout/stderr).
+Uma exfiltração por stdout/stderr precisa ser pega por outro mecanismo:
+aqui, a leitura direta da saída real do processo (como feito acima), ou,
+operacionalmente, nunca redirecionar a saída deste programa para um
+canal não confiável durante uma geração real.
