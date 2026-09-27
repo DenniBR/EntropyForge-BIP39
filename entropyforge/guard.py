@@ -46,6 +46,21 @@ _BLOCKED_EVENT_PREFIXES = (
     "ctypes.dlsym",
 )
 
+# /dev/tty e o terminal controlador do PROPRIO processo -- nao e
+# armazenamento persistente (e um dispositivo de caractere, nao um
+# arquivo regular), entao abri-lo nunca e "escrever em disco" no sentido
+# do requisito 14, mesmo quando aberto com O_RDWR (getpass.getpass(), usado
+# para ler os lancamentos do dado e o mnemonic de conferencia SEM eco na
+# tela, abre exatamente `/dev/tty` com O_RDWR|O_NOCTTY -- ver
+# `Lib/getpass.py` da biblioteca padrao). Bloquear este caminho especifico
+# quebraria a entrada oculta de dados em QUALQUER terminal real (achado de
+# teste de interrupcao externo via pty, Fase E:
+# tests/test_generate_interruption_real_subprocess.py teria descoberto,
+# em producao, que `generate` nunca conseguia sequer pedir os lancamentos
+# do dado). Nenhum outro caminho recebe este tratamento: um `open()` para
+# qualquer arquivo REGULAR continua bloqueado exatamente como antes.
+_ALWAYS_ALLOWED_OPEN_PATHS = frozenset({"/dev/tty"})
+
 _BLOCKED_EVENTS = {
     "os.system",
     "os.remove",
@@ -87,6 +102,19 @@ def _audit_hook(event: str, args: tuple) -> None:
         file = args[0] if len(args) > 0 else "?"
         mode = args[1] if len(args) > 1 else None
         flags = args[2] if len(args) > 2 else None
+        if isinstance(file, int):
+            # Nao e um CAMINHO novo sendo aberto -- e um wrapper de I/O
+            # (ex.: `io.FileIO(fd, ...)`, o que `getpass.getpass()` faz
+            # logo apos `os.open('/dev/tty', ...)`) sendo construido em
+            # torno de um descritor de arquivo QUE JA EXISTE. A unica
+            # forma de obter um descritor GRAVAVEL para um arquivo regular
+            # e atraves de um `open()`/`os.open()` por CAMINHO -- que
+            # continua auditado e bloqueado (exceto /dev/tty) no ramo
+            # abaixo. Permitir este ramo (fd ja existente) nao abre
+            # nenhuma superficie nova de escrita em disco.
+            return
+        if isinstance(file, (str, os.PathLike)) and str(file) in _ALWAYS_ALLOWED_OPEN_PATHS:
+            return
         if _is_write_mode(mode) or _is_write_flags(flags):
             raise GuardViolation(
                 f"escrita em arquivo bloqueada pela politica de seguranca: "

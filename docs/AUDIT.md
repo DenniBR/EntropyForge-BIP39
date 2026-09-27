@@ -89,7 +89,7 @@ acima contra esse arquivo diretamente.
 | # | Invariante | Teste |
 |---|---|---|
 | 1 | Nenhum módulo do pacote importa `random`, módulos de rede, `subprocess`, `ctypes` ou `logging` | `tests/test_security_ast.py` (estático, AST) |
-| 2 | O audit hook bloqueia socket, subprocess, `os.system`, escrita em arquivo, `os.remove` | `tests/test_guard.py` (dinâmico, subprocesso isolado) |
+| 2 | O audit hook bloqueia socket, subprocess, `os.system`, escrita em arquivo, `os.remove` — e permite ESPECIFICAMENTE `/dev/tty` (necessário para `getpass.getpass`, usado pela entrada oculta de dígitos/mnemonic; ver `entropyforge/guard.py::_ALWAYS_ALLOWED_OPEN_PATHS`), sem afrouxar o bloqueio para nenhum outro caminho | `tests/test_guard.py` (dinâmico, subprocesso isolado) |
 | 3 | `dice.encode`/`decode` são inversas exatas, para todo `n` pequeno (exaustivo) e amostrado (n maior) | `tests/test_dice.py` |
 | 4 | `entropy_to_mnemonic`/`mnemonic_to_entropy` são inversas exatas | `tests/test_bip39.py` |
 | 5 | Os 24 vetores oficiais BIP-39 (12/18/24 palavras, com seed PBKDF2) batem exatamente | `tests/test_bip39_vectors.py` |

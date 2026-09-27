@@ -574,3 +574,75 @@ sha256(entropyforge/data/english.txt) = 2f5eed53a4727b4bf8880d8f3f199efc90e58503
 sha256(entropyforge.pyz, construido agora)                = 7d61008a5a2c0209c0b4d9b24039e527f4751c972fc1771e6509aea96c942793
 sha256(entropyforge/dice.py, apos a correcao do achado #1) = 64434186558e57261d45a1e6ce0e25a6afc3af6d1c55b646b123aefcca799009
 ```
+
+## 17. Adendo (Fase E) — bug crítico: `generate` inutilizável em qualquer terminal real
+
+**Este é o achado mais grave de todo o projeto até agora**, e ilustra
+exatamente por que a Fase E exigiu um teste de interrupção via
+subprocesso e terminal (`pty`) REAIS, em vez de confiar apenas na
+abstração `TerminalIO` falsa usada por toda a suíte de testes anterior.
+
+**O bug:** `entropyforge/guard.py::_audit_hook` bloqueia qualquer
+`open()`/`os.open()` cujos `flags` incluam `O_RDWR` (entre outras), como
+parte do requisito 14 ("este programa nunca escreve em disco").
+`getpass.getpass()` — usado pela leitura oculta de dígitos do dado e do
+mnemonic de conferência — abre `/dev/tty` com exatamente
+`os.O_RDWR | os.O_NOCTTY` (`Lib/getpass.py` da biblioteca padrão), e em
+seguida envolve o descritor resultante num `io.FileIO(fd, "w+")` (um
+SEGUNDO evento de auditoria "open", desta vez com um inteiro em vez de um
+caminho). O audit hook tratava ambos exatamente como uma tentativa de
+escrever um arquivo em disco e os bloqueava — o que significa que
+**`entropyforge generate`, na sua configuração padrão, nunca conseguia
+sequer pedir os lançamentos do dado em nenhum terminal real**: a primeira
+chamada a `read_hidden_line` levantava `guard.GuardViolation` e o
+processo abortava com um traceback.
+
+**Por que nenhum teste anterior pegou isso:** todo teste de `generate`
+(inclusive os de vazamento de segredo, os de interrupção em processo, e
+os de fuzzing via subprocesso real do Phase D) construía uma `TerminalIO`
+com `read_hidden_line` SUBSTITUÍDO por uma função falsa (uma lambda que
+devolve uma string fixa) — nenhum deles jamais exercitava
+`getpass.getpass()` de verdade com o audit hook ativo. O teste de
+subprocesso real mais próximo (`redteam/scripts/cli_fuzz.py`, Fase D)
+mandava SIGINT com stdin/stdout como PIPES comuns, não um `pty` — nesse
+caso `generate` já recusava antes por falta de TTY (`io.stdin_isatty()`
+falso), então o caminho de `getpass.getpass()` nunca era alcançado
+também ali.
+
+**Como foi encontrado:** `tests/test_generate_interruption_real_subprocess.py`
+(Fase E, requisito de teste de interrupção externo) usa `pty.fork()` para
+dar ao processo filho um terminal controlador de verdade — o mínimo
+necessário para que `getpass.getpass()` sequer tente abrir `/dev/tty`. O
+primeiro teste dessa suíte falhou imediatamente, com exatamente esse
+`GuardViolation` capturado no traceback do processo filho.
+
+**A correção** (`entropyforge/guard.py`): duas exceções estritas e
+específicas no `_audit_hook`, nenhuma delas afrouxando a proteção contra
+escrita em arquivos REGULARES:
+
+1. `open`/`os.open` para o caminho literal `/dev/tty` é sempre permitido,
+   independente de `mode`/`flags` — este caminho é o terminal controlador
+   do próprio processo, nunca armazenamento persistente.
+2. Um evento `open` cujo primeiro argumento é um **inteiro** (um
+   descritor de arquivo já existente sendo envolvido por `io.FileIO`,
+   não um caminho novo sendo criado) é sempre permitido — a única forma
+   de obter um descritor gravável para um arquivo regular continua sendo
+   um `open()`/`os.open()` por CAMINHO, que continua totalmente auditado
+   e bloqueado (exceto `/dev/tty`, acima).
+
+**Testes de regressão:** `tests/test_guard.py::AuditHookAllowsDevTtyTests`
+(4 testes: `/dev/tty` permitido, wrap de fd existente permitido, qualquer
+OUTRO caminho com O_RDWR continua bloqueado, e a `TerminalIO` padrão real
+não levanta mais `GuardViolation`) e
+`tests/test_generate_interruption_real_subprocess.py::RealTerminalHappyPathTests`
+(fluxo `generate` completo, de ponta a ponta, num `pty` real — a
+confirmação positiva de que o caminho que os testes de interrupção
+exercitam também tem sucesso quando não interrompido).
+
+**Lição estrutural:** uma suíte de testes inteiramente baseada numa
+abstração (`TerminalIO`) que substitui a peça exata (`getpass.getpass`)
+onde o bug vivia pode ficar verde para sempre sem nunca detectar um bug
+que torna o programa inteiro inutilizável na prática. Isto reforça a
+mesma lição já registrada no achado #2 da seção 3 (stdout/stderr reais) e
+na diretriz geral desta fase: **"não aceite 'passou anteriormente', rode
+de novo"** — neste caso, rode com um terminal de verdade.
