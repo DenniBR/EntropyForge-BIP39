@@ -441,12 +441,16 @@ explicados em cada uma.
 
 ## 11. Limitações desta auditoria
 
-- Não foi feita fuzzing via um pseudo-terminal (`pty`) real; os cenários
-  de interrupção (SIGINT) e de `--rolls` inválido durante a coleta real
-  de dígitos foram confirmados por injeção de dependência (white-box,
-  `TerminalIO` falsa), não por um terminal de verdade de ponta a ponta.
-  Alta confiança de qualquer forma, já que a lógica testada é a mesma
-  função exata usada em produção.
+- ~~Não foi feita fuzzing via um pseudo-terminal (`pty`) real~~ — feito na
+  Fase E (`tests/test_generate_interruption_real_subprocess.py`), e
+  encontrou um bug real de severidade crítica que esta limitação, quando
+  escrita, escondia: `guard.py` bloqueava `getpass.getpass()` (usado pela
+  entrada oculta de dígitos) em qualquer terminal real, tornando
+  `generate` inutilizável fora de testes com `TerminalIO` falsa. Ver
+  `docs/FINAL_SECURITY_REVIEW.md` seção 17. Esta é a confirmação mais
+  direta possível de que testar só com uma abstração que substitui a
+  peça exata onde um bug vive pode deixar a suíte inteira verde
+  indefinidamente.
 - Mutation testing cobriu 11 mutações escolhidas por julgamento
   (checksum, encoding, combinação, wordlist, correção estatística, guard,
   cálculo de entropia) — não é uma cobertura exaustiva de todas as
@@ -456,3 +460,50 @@ explicados em cada uma.
 - Não foi feita análise de canal lateral por tempo de execução
   (timing side-channel) além do já discutido no código
   (`hmac.compare_digest` na comparação de reconferência do mnemonic).
+
+## 12. Adendo (Fase E) — fuzzing final
+
+`redteam/phase_e/scripts/fuzz_final.py` (saída completa em
+`redteam/phase_e/findings/fuzz_final_output.txt`) roda uma rodada final de
+fuzzing dirigida especificamente aos alvos exigidos pela Fase E: parser e
+normalização de dado (`dice.normalize_dice_input`, novo desde esta fase),
+`dice.validate_rolls`, o encoding/decoding bijetora de `A`
+(`dice.encode`/`decode`), a implementação BIP-39 (`entropy_to_mnemonic`/
+`mnemonic_to_entropy`), a detecção de adulteração de checksum, o parser
+do modo `vector`, e entrada de CLI via subprocesso real.
+
+**Método:** `random.Random(20260927)` (mesma seed documentada de
+`tools/simulate_power.py`), reprodutível, nunca usado para nada que
+alimente uma carteira real. Critério de falha: uma exceção de tipo NÃO
+documentado, uma falha em recusar entrada inválida, ou um travamento
+(timeout) — nunca "o resultado parece estranho".
+
+| Alvo | Iterações | Problemas encontrados |
+|---|---|---|
+| `dice.normalize_dice_input` (strings arbitrárias, incl. Unicode/bytes nulos) | 20.000 | 0 |
+| `dice.validate_rolls` (idem) | 20.000 | 0 |
+| `dice.encode`/`decode` round-trip (`n` até 500) | 5.000 | 0 |
+| `dice.decode` (bytes totalmente arbitrários) | 5.000 | 0 |
+| `bip39` entropy↔mnemonic round-trip + rejeição de comprimentos inválidos | 5.000 + 200 | 0 |
+| `bip39` detecção de adulteração de checksum (5 tipos de mutação) | 5.000 | 0 (ver nota abaixo) |
+| `vector` (parser argparse + `cmd_vector`) | 3.000 | 0 |
+| CLI via subprocesso real (`generate`/`calibrate`, bytes aleatórios em stdin) | 60 | 0 |
+
+**Total: 63.060 iterações, 0 problemas.**
+
+**Nota metodológica sobre o alvo de checksum:** das 5.000 mutações
+aleatórias de um mnemonic válido, 49 (~1%) foram aceitas por
+`bip39.mnemonic_to_entropy` sem erro — isto **não é um bug**. O checksum
+BIP-39 tem só `ENT/32` bits (4 a 8 bits para as entropias testadas aqui),
+então uma fração pequena mas matematicamente esperada de mutações
+aleatórias (`swap_word`/`reorder`) vai, por puro acaso, corresponder a
+outro código de checksum válido — a probabilidade exata,
+`2^-checksum_bits`, é a mesma métrica que `docs/MATH.md` já usa para
+caracterizar a força do checksum como detector de ERROS DE TRANSCRIÇÃO
+não-adversariais (nunca uma defesa criptográfica). Este fuzzer nunca trata
+"mutação aceita" como falha por si só: cada aceitação é cruzada contra
+`bip39_min` (a implementação independente de `independent-verifier/`, por
+deslocamento de bits, não string-slicing) — só uma DIVERGÊNCIA entre as
+duas implementações (uma aceita, a outra rejeita, ou aceitam entropias
+diferentes) seria reportada como problema real. Nenhuma divergência foi
+encontrada.

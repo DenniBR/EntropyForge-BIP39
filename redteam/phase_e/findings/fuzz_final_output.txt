@@ -1,0 +1,21 @@
+=== Fuzzing final (Fase E) -- seed=20260927 ===
+
+[            OK] dice.normalize_dice_input                     n=20000  0.13s
+[            OK] dice.validate_rolls                           n=20000  0.42s
+[            OK] dice.encode/decode roundtrip                  n=5000   0.78s
+[            OK] dice.decode (bytes arbitrarios)               n=5000   2.48s
+[            OK] bip39 entropy<->mnemonic roundtrip            n=5000   0.15s
+    (info, nao um problema: 49 mutacao(oes) cairam numa colisao de checksum esperada pela matematica do BIP-39 -- ambas implementacoes concordaram; ver docstring de fuzz_bip39_checksum_tamper)
+[            OK] bip39 checksum tamper detection               n=5000   0.60s
+usage: entropyforge vector [-h] [--entropy-hex ENTROPY_HEX]
+                           [--mnemonic MNEMONIC] [--a-digits A_DIGITS]
+                           [--b-hex B_HEX]
+entropyforge vector: error: argument --mnemonic: expected one argument
+usage: entropyforge vector [-h] [--entropy-hex ENTROPY_HEX]
+                           [--mnemonic MNEMONIC] [--a-digits A_DIGITS]
+                           [--b-hex B_HEX]
+entropyforge vector: error: argument --mnemonic: expected one argument
+[            OK] cli vector (parser + cmd_vector)              n=3000   0.15s
+[            OK] cli subprocess real (generate/calibrate)      n=60     4.01s
+
+=== RESUMO: 63060 iteracoes totais, 0 problema(s) encontrado(s), 8.72s ===
