@@ -1,6 +1,6 @@
 PYTHON ?= python3
 
-.PHONY: test selftest vectors build repro lint clean simulate release verify-release executable repro-exe
+.PHONY: test selftest vectors build repro lint clean simulate release verify-release verify-executable executable repro-exe
 
 ## Roda toda a suite de testes (unittest da stdlib; sem dependencias de terceiros).
 test:
@@ -46,25 +46,29 @@ lint:
 simulate:
 	$(PYTHON) tools/simulate_power.py
 
-## Fluxo OFICIAL de release (Fase E): builda o .pyz, gera o manifesto de
-## release (MANIFEST.txt) e monta o pacote autocontido em release/ (o
-## .pyz, os hashes, e toda a documentacao) -- o que deve ser levado para a
-## maquina permanentemente offline. Ver docs/VERIFY.md para o passo a
-## passo de verificacao e docs/GENERATION_CEREMONY.md para a cerimonia de
-## geracao em si.
-release: build
+## Fluxo OFICIAL de release (Fase E, expandido na Fase F): builda o .pyz
+## E o executavel standalone, gera o manifesto de release (MANIFEST.txt,
+## agora com os campos do executavel) e monta o pacote autocontido em
+## release/ -- o que deve ser levado para a maquina permanentemente
+## offline. Ver docs/VERIFY.md para o passo a passo de verificacao e
+## docs/GENERATION_CEREMONY.md para a cerimonia de geracao em si.
+release: build executable
 	$(PYTHON) tools/build_release_manifest.py
 	$(PYTHON) tools/assemble_release.py
 
-## Fluxo OFICIAL de verificacao (Fase E): reconfere, do zero, cada campo
-## de MANIFEST.txt contra o codigo-fonte e o .pyz atuais (nao contra o
-## conteudo de release/, que e so uma copia -- rode `make release` de
-## novo se quiser reconferir a copia tambem). Imprime SOMENTE PASS/FAIL.
-## Requer que `make release` (ou ao menos `make build` +
-## `tools/build_release_manifest.py`) ja tenha rodado.
+## Fluxo OFICIAL de verificacao (Fase E, expandido na Fase F): reconfere,
+## do zero, cada campo de MANIFEST.txt contra o codigo-fonte, o .pyz e o
+## diretorio do executavel atuais (nao contra o conteudo de release/, que
+## e so uma copia -- rode `make release` de novo se quiser reconferir a
+## copia tambem). Imprime SOMENTE PASS/FAIL. Requer que `make release`
+## (ou ao menos `make build` + `make executable` +
+## `tools/build_release_manifest.py`) ja tenha rodado. Esta e' a checagem
+## RAPIDA (nao reconstroi o executavel) -- para a checagem FORTE do
+## executavel (reconstruir e comparar), use `verify-executable` abaixo.
 verify-release:
 	@test -f MANIFEST.txt || (echo "erro: MANIFEST.txt nao existe -- rode 'make release' primeiro" && exit 2)
 	@test -f entropyforge.pyz || (echo "erro: entropyforge.pyz nao existe -- rode 'make release' primeiro" && exit 2)
+	@ls -d dist_executable/entropyforge-bip39-v*-*-* >/dev/null 2>&1 || (echo "erro: nenhum diretorio de executavel em dist_executable/ -- rode 'make executable' primeiro" && exit 2)
 	$(PYTHON) independent-verifier/verify_release.py \
 		--manifest MANIFEST.txt \
 		--entropyforge-root entropyforge \
@@ -72,6 +76,19 @@ verify-release:
 		--verifier-root independent-verifier/verifier \
 		--build-script tools/build_pyz.py \
 		--vectors tests/vectors/bip39_vectors.json \
+		--executable-dist $$(ls -d dist_executable/entropyforge-bip39-v*-*-* | head -1) \
+		--verbose
+
+## Checagem FORTE do executavel (Fase F): reconstroi a partir do
+## `entropyforge/` atual e compara o hash contra MANIFEST.txt. Requer
+## 'nuitka' e um compilador C (dependencia de BUILD, nao de runtime).
+verify-executable:
+	@test -f MANIFEST.txt || (echo "erro: MANIFEST.txt nao existe -- rode 'make release' primeiro" && exit 2)
+	@ls -d dist_executable/entropyforge-bip39-v*-*-* >/dev/null 2>&1 || (echo "erro: nenhum diretorio de executavel em dist_executable/ -- rode 'make executable' primeiro" && exit 2)
+	$(PYTHON) independent-verifier/verify_executable.py \
+		--manifest MANIFEST.txt \
+		--entropyforge-root entropyforge \
+		--executable-dist $$(ls -d dist_executable/entropyforge-bip39-v*-*-* | head -1) \
 		--verbose
 
 ## Constroi o executavel standalone (Fase F, Nuitka -- ver

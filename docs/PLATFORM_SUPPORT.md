@@ -87,6 +87,16 @@ verdadeiros enquanto esta lacuna não for endereçada (nenhum código deste
 projeto tenta detectar rede em Windows hoje). Windows pode ser usado para
 desenvolvimento, leitura de código e rodar a suíte de testes.
 
+**Nota (Fase F, executável standalone):** esta seção descreve o
+comportamento do PRÓPRIO PROGRAMA quando rodado com um interpretador
+Python em Windows (fonte ou `.pyz`). Isto é diferente de "existe um
+executável Windows pronto para distribuir" — **não existe**: nenhuma das
+ferramentas de empacotamento avaliadas (PyInstaller, Nuitka) faz
+cross-compilação de Linux para Windows, e não havia máquina Windows
+disponível neste ambiente de build para produzir um binário nativo. Ver
+`docs/EXECUTABLE_BUILD.md` seção 8 e `docs/EXECUTABLE_RELEASE_CHECKS.md`
+seção 5 para a avaliação completa e honesta dessa lacuna.
+
 ## 4. Windows XP — explicitamente NÃO SUPORTADA
 
 Este projeto exige Python ≥ 3.11 (ver `README.md`). Não existe, e nunca
