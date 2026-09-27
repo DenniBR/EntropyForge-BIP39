@@ -65,6 +65,8 @@ protege, e o que não protege).
 | [`docs/REDTEAM.md`](docs/REDTEAM.md) | Auditoria adversarial (red team): o que foi atacado, o que quebrou, o que foi corrigido |
 | [`docs/INDEPENDENT_VERIFIER.md`](docs/INDEPENDENT_VERIFIER.md) | Verificação de segunda ordem: um verificador separado que não confia no EntropyForge nem em si mesmo sem se testar; inclui `verify_release.py` (`PASS`/`FAIL` contra um `MANIFEST.txt` de release) |
 | [`docs/FINAL_SECURITY_REVIEW.md`](docs/FINAL_SECURITY_REVIEW.md) | Revisão de segurança final antes de considerar o projeto candidato a uso real |
+| [`docs/STATIC_SCAN_FINAL.md`](docs/STATIC_SCAN_FINAL.md) | Revisão estática final de `entropyforge/`, com todo falso positivo explicado |
+| [`docs/PHASE_E_TEST_MATRIX.md`](docs/PHASE_E_TEST_MATRIX.md) | Matriz consolidada de testes da Fase E (release de produção) |
 
 ## O que este programa garante (e o que não garante)
 
