@@ -40,6 +40,8 @@
 14. [Estado final da documentação](#14-estado-final-da-documentação)
 15. [Release gate](#15-release-gate)
 16. [Hashes finais e instruções de auditoria independente](#16-hashes-finais-e-instruções-de-auditoria-independente)
+17. [Adendo (Fase E) — bug crítico: `generate` inutilizável em qualquer terminal real](#17-adendo-fase-e--bug-crítico-generate-inutilizável-em-qualquer-terminal-real)
+18. [Adendo (Fase F) — Executable Release Security](#18-adendo-fase-f--executable-release-security)
 
 ---
 
@@ -652,3 +654,119 @@ que torna o programa inteiro inutilizável na prática. Isto reforça a
 mesma lição já registrada no achado #2 da seção 3 (stdout/stderr reais) e
 na diretriz geral desta fase: **"não aceite 'passou anteriormente', rode
 de novo"** — neste caso, rode com um terminal de verdade.
+
+## 18. Adendo (Fase F) — Executable Release Security
+
+A Fase F produziu um segundo artefato distribuível — um executável
+standalone (Nuitka `--standalone`, Linux x86_64) que não exige Python
+instalado na máquina onde roda — e uma bateria de testes específica
+contra esse artefato (não repetição dos testes do source: testes que só
+existem porque o executável é um objeto diferente, com uma cadeia de
+build diferente). Resumo executivo; detalhes completos e comandos
+reprodutíveis em `docs/EXECUTABLE_BUILD.md` e
+`docs/EXECUTABLE_RELEASE_CHECKS.md`.
+
+**Escolha da ferramenta, com evidência, não preferência.** PyInstaller e
+Nuitka foram os dois candidatos avaliados (zipapp não produz um binário
+standalone). O modo `--onefile` de AMBOS foi descartado por uma razão
+mensurável, não estética: `strace` mostrou que ambos escrevem dezenas de
+arquivos em `/tmp/` a cada execução, antes mesmo do interpretador Python
+existir — violação direta do requisito mais testado deste projeto
+("nunca escrever em disco"). Entre os dois modos restantes (`--onedir` /
+`--standalone`, nenhum dos quais escreve em disco no startup, confirmado
+pela mesma técnica), Nuitka foi escolhido porque compila every byte do
+executável final localmente via `gcc` do sistema, enquanto o bootloader
+Linux do PyInstaller é um binário ELF pré-compilado, distribuído dentro
+do próprio wheel do PyPI — uma dependência de confiança que este projeto
+já rejeitava explicitamente para o `.pyz` desde a Fase C/D. O
+contraponto honesto: compilar para C é uma transformação mais distante
+do source Python auditado do que interpretá-lo diretamente — por isso o
+`.pyz` continua sendo o artefato recomendado para quem quer auditar sem
+essa camada extra (`docs/EXECUTABLE_BUILD.md` seção 2).
+
+**Superfície reduzida deliberadamente.** `_hashlib`/`ssl`/`_ssl`
+(OpenSSL) são excluídos do bundle via `--nofollow-import-to` — confirmado
+empiricamente que `hashlib.sha256()` cai para o `_sha256` embutido no
+próprio interpretador com resultado byte-idêntico, e este projeto nunca
+faz TLS/rede, então uma biblioteca C grande e frequentemente corrigida
+sai inteiramente da superfície distribuída sem custo funcional.
+
+**Auditoria de segredos contra o executável REAL construído** (não uma
+promessa sobre o processo de build): inventário completo de arquivos,
+grep por padrões de credencial, busca pelos valores fictícios conhecidos
+do próprio projeto (mnemonic de `docs/WALLET_IMPORT_TEST.md`, canários de
+teste), busca por caminhos absolutos da máquina de build nas strings do
+binário, e verificação do hash da wordlist embutida — todos limpos (ver
+`docs/EXECUTABLE_SECRET_AUDIT.md`).
+
+**Reprodutibilidade** confirmada empiricamente com 4 builds
+independentes (diretórios/umask/timezone/`PYTHONHASHSEED` diferentes, a
+partir de extrações `git archive` separadas, nunca do diretório de
+desenvolvimento) — SHA-256 idêntico do binário principal E de cada
+arquivo do diretório. Limitação declarada sem disfarce: só uma versão de
+Python/gcc/Nuitka estava disponível neste ambiente, então
+reprodutibilidade ENTRE versões diferentes da cadeia de ferramentas não
+foi testada (`docs/EXECUTABLE_RELEASE_CHECKS.md` seção 2).
+
+**Interoperabilidade fim a fim através do artefato distribuído, não só
+do source**: `tests/test_executable_dev_cross_check_bip32.py` lê a
+mnemonic do STDOUT REAL do binário compilado (`vector`, dados públicos
+de teste) e a leva até um endereço BIP-44 via duas implementações
+externas (`mnemonic`, `bip32utils`) mais uma reimplementação crua da
+derivação BIP-32 (`hmac`/`hashlib`) — confirma que o binário compilado,
+não só o código-fonte que o gerou, interopera corretamente.
+
+**Teste de backdoor contra o PIPELINE DE BUILD do executável** (não só
+contra o source interpretado, já coberto nas seções 7/9): três
+executáveis reais foram construídos — limpo, com uma alteração
+puramente cosmética (um literal de string novo, sem efeito funcional),
+e com um backdoor experimental que passa em todos os KATs mas vaza a
+entropia combinada via `stderr`. Achado central, com hashes reais (ver
+`docs/EXECUTABLE_RELEASE_CHECKS.md` seção 4): a AUTO-verificação
+(manifesto gerado a partir da mesma cópia de source usada para construir)
+sempre "passa", inclusive para o backdoor — isso é o comportamento
+correto, não uma falha, e é exatamente por isso que a verificação real
+tem que vir de um `--entropyforge-root` obtido por um canal
+independente. Quando `independent-verifier/verify_executable.py`
+reconstrói o executável a partir da cópia REAL e revisada do
+repositório (não a cópia do cenário), ele detecta tanto o backdoor
+quanto a alteração cosmética (`FAIL` em
+`executavel.reconstrucao_a_partir_do_source`), com zero falsos positivos
+no cenário legítimo.
+
+**Fuzzing e observação de processo**: 400 iterações de fuzzing (mesma
+seed fixa e documentada de `redteam/phase_e/scripts/fuzz_final.py`)
+contra o binário compilado real — 0 tracebacks vazados, 0 travamentos, 0
+ecos de payload. Comparação `strace -f` entre o executável limpo e o
+executável com o backdoor de exfiltração via `stderr`: sintaxe de
+rede/processo/disco idêntica entre os dois — achado esperado e já
+documentado para o source na Fase D, já que o backdoor escreve num
+descritor de arquivo já existente, nunca uma nova syscall. A
+distinção real está no STDOUT/STDERR reais capturados do processo (que
+mostram o vazamento no caso do backdoor e não no limpo), não no log do
+`strace`, cujo filtro (rede/disco/processo) nunca teria mostrado essa
+escrita de qualquer forma — limitação de escopo documentada, não uma
+falha da ferramenta (`docs/EXECUTABLE_RELEASE_CHECKS.md` seção 7).
+
+**Windows: avaliado, não produzido.** Nem PyInstaller nem Nuitka fazem
+cross-compilação de Linux para Windows; este ambiente de build não tem
+uma máquina Windows disponível; alternativas via Wine foram
+consideradas e rejeitadas por não atenderem à barra de "tecnicamente
+segura e reprodutível" que este projeto exige de qualquer artefato
+distribuído. Documentado como lacuna real, não uma alegação de suporte
+que não existe (`docs/EXECUTABLE_BUILD.md` seção 8,
+`docs/PLATFORM_SUPPORT.md`).
+
+**Assinatura de código: avaliada, não implementada.** Assinar exigiria
+uma chave privada, que nunca deve existir dentro deste repositório nem
+ser gerada por um agente automatizado sem custódia humana explícita —
+gerar uma assinatura "de demonstração" seria pior do que não assinar,
+por sugerir uma cadeia de confiança que não existe. Documentado como
+etapa externa e manual do processo de release
+(`docs/EXECUTABLE_RELEASE_CHECKS.md` seção 6).
+
+**Nenhuma alegação de segurança absoluta foi adicionada por esta fase** —
+o executável é mais um artefato distribuível, com seu próprio conjunto de
+evidências e limitações declaradas, nunca uma promessa de que é "mais
+seguro" ou "definitivo" em relação ao `.pyz`. A escolha entre os dois
+cabe a quem opera (`docs/EXECUTABLE_BUILD.md` seção 2, `docs/VERIFY.md`).

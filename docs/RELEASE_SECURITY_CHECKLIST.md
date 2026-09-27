@@ -33,34 +33,58 @@
 
 ## Build e verificação do artefato
 
+Escolha UM artefato para a cerimônia — `.pyz` (exige Python ≥ 3.11 já
+instalado na máquina offline) ou o executável standalone da Fase F (não
+exige Python instalado, mas é maior e mais difícil de auditar byte a
+byte; ver `docs/EXECUTABLE_BUILD.md` seção 2 para a diferença completa).
+Os itens abaixo cobrem os dois.
+
 Forma rápida (recomendada — automatiza os itens abaixo):
 
 - [ ] **Release verificado**: `make release && make verify-release`
       imprime `PASS` (ver `docs/VERIFY.md` para o que isso prova e não
-      prova).
+      prova — cobre o `.pyz` E os campos do executável).
+- [ ] **Se for usar o executável**: `make verify-executable` imprime
+      `PASS` (checagem FORTE — reconstrói o executável a partir do
+      source revisado e compara o hash; requer `nuitka`+`gcc` na máquina
+      onde você verifica, nunca na máquina offline).
 
 Ou manualmente, item a item:
 
-- [ ] **Build**: `make build` executado localmente, a partir do código
-      revisado (nunca um `.pyz` baixado de terceiros).
-- [ ] **Hash/reprodutibilidade**: `make repro` confirma que duas builds
-      independentes produzem o mesmo SHA-256.
+- [ ] **Build**: `make build` (e, se for usar o executável, também
+      `make executable`) executado localmente, a partir do código
+      revisado (nunca um `.pyz`/executável baixado de terceiros).
+- [ ] **Hash/reprodutibilidade**: `make repro` (`.pyz`) e/ou
+      `make repro-exe` (executável) confirmam que builds independentes
+      produzem o mesmo SHA-256.
 - [ ] **Verifier**: `cd independent-verifier && python3 -B -m unittest
       discover -s tests` passa 100%.
 - [ ] **Wordlist**: o hash da wordlist embutida bate com o valor
       conhecido de forma independente pelo verificador (não só o valor
       que o próprio EntropyForge diz esperar — ver
       `verifier.wordlist_check.KNOWN_OFFICIAL_SHA256`).
-- [ ] **Artefato**: `verifier.pyz_inspect.compare_pyz_to_source` confirma
-      que o `.pyz` construído bate byte a byte com o source-tree
-      revisado, incluindo o bootstrap `__main__.py`.
+- [ ] **Artefato (`.pyz`)**: `verifier.pyz_inspect.compare_pyz_to_source`
+      confirma que o `.pyz` construído bate byte a byte com o
+      source-tree revisado, incluindo o bootstrap `__main__.py`.
+- [ ] **Artefato (executável)**: `independent-verifier/verify_executable.py`
+      (sem `--skip-rebuild`) confirma que o executável reconstruído a
+      partir do source revisado bate exatamente com o executável em
+      mãos — a checagem equivalente ao item acima, mas para o binário
+      compilado (ver `docs/EXECUTABLE_BUILD.md` seção 7).
+- [ ] **Integridade de transferência do executável** (se aplicável):
+      depois de copiar a pasta do executável para a mídia/máquina
+      offline, `sha256sum -c <nome-do-executavel>.sha256` (rodado de
+      dentro da pasta) confirma que TODOS os arquivos chegaram intactos,
+      não só o binário principal.
 
 ## Imediatamente antes de `generate`
 
 - [ ] **Rede**: nenhuma interface ativa (o programa verifica isso
       automaticamente e se recusa a continuar, mas confirme
       independentemente).
-- [ ] **Selftest**: `python3 -I -B entropyforge.pyz selftest` reporta
+- [ ] **Selftest**: `python3 -I -B entropyforge.pyz selftest` (ou
+      `./entropyforge-bip39-vX.Y.Z-linux-x86_64/entropyforge-bip39
+      selftest`, se estiver usando o executável) reporta
       `RESULTADO GERAL: PASSOU`.
 - [ ] **Estado do dado**: o d6 físico foi inspecionado (sem rachaduras,
       desgaste visível, marcações); se possível, já foi calibrado

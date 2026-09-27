@@ -10,6 +10,16 @@ E = SHA-256( encode(lançamentos_do_d6) ‖ os.getrandom(32) )
 mnemonic = BIP39(E)     # 24 palavras
 ```
 
+## Não sabe Python? Comece aqui
+
+Desde a Fase F existe um **executável pronto** (Linux x86_64) — você não
+precisa instalar Python nem digitar comandos de desenvolvedor. Siga
+**[`docs/QUICK_START.md`](docs/QUICK_START.md)**: baixar, conferir, e
+gerar um mnemonic real numa máquina offline, em oito passos simples,
+separando claramente o que se faz numa máquina conectada do que se faz
+na máquina offline onde o segredo é gerado. O resto deste README é
+voltado para quem vai construir, auditar ou verificar o código-fonte.
+
 ## Por que duas fontes
 
 Se **qualquer uma** das duas fontes for boa e desconhecida de um
@@ -33,16 +43,19 @@ python3 -I -B entropyforge.pyz generate    # gera um mnemonic real (exige TTY, o
 ```
 
 Para montar e verificar um **release completo** (o pacote autocontido que
-vai para a máquina offline — `.pyz` + hashes + toda a documentação):
+vai para a máquina offline — `.pyz` + executável standalone + hashes +
+toda a documentação):
 
 ```sh
-make release          # build + MANIFEST.txt + monta release/
-make verify-release   # reconfere tudo do zero; imprime só PASS/FAIL
+make release            # build + executavel + MANIFEST.txt + monta release/
+make verify-release     # reconfere tudo do zero; imprime só PASS/FAIL
+make verify-executable  # checagem FORTE do executavel (reconstroi e compara)
 ```
 
 Ver `docs/VERIFY.md` para o passo a passo de verificação (inclusive por
 alguém que não construiu o release, a partir de um `MANIFEST.txt`
-recebido separadamente).
+recebido separadamente), ou `docs/QUICK_START.md` para o caminho mais
+simples usando só o executável.
 
 **Antes de usar para fundos reais**, leia `docs/OPERATIONS.md` (como
 operar com segurança) e `docs/THREAT_MODEL.md` (o que este programa
@@ -52,6 +65,7 @@ protege, e o que não protege).
 
 | Documento | Conteúdo |
 |---|---|
+| [`docs/QUICK_START.md`](docs/QUICK_START.md) | Guia rápido para quem não conhece Python: baixar, conferir e gerar um mnemonic real usando só o executável, em passos simples (SETUP ONLINE / CERIMÔNIA OFFLINE) |
 | [`docs/DESIGN.md`](docs/DESIGN.md) | Arquitetura, decisões criptográficas, rastreabilidade de requisitos |
 | [`docs/MATH.md`](docs/MATH.md) | Toda a matemática: entropia, provas das distribuições estatísticas, orçamento de vazamento, o que é fato vs. heurística vs. premissa vs. opinião |
 | [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Modelo de ameaças completo (SO, hardware, supply chain, dado enviesado, computação quântica, etc.) |
@@ -67,6 +81,9 @@ protege, e o que não protege).
 | [`docs/FINAL_SECURITY_REVIEW.md`](docs/FINAL_SECURITY_REVIEW.md) | Revisão de segurança final antes de considerar o projeto candidato a uso real |
 | [`docs/STATIC_SCAN_FINAL.md`](docs/STATIC_SCAN_FINAL.md) | Revisão estática final de `entropyforge/`, com todo falso positivo explicado |
 | [`docs/PHASE_E_TEST_MATRIX.md`](docs/PHASE_E_TEST_MATRIX.md) | Matriz consolidada de testes da Fase E (release de produção) |
+| [`docs/EXECUTABLE_BUILD.md`](docs/EXECUTABLE_BUILD.md) | Fase F: como o executável standalone é construído, por que Nuitka (com evidência, não preferência), o que entra/não entra, cadeia verificável, plataformas |
+| [`docs/EXECUTABLE_RELEASE_CHECKS.md`](docs/EXECUTABLE_RELEASE_CHECKS.md) | Fase F: evidências empíricas completas — reprodutibilidade, interoperabilidade, teste de backdoor no pipeline de build, fuzzing, observação de processo |
+| [`docs/EXECUTABLE_SECRET_AUDIT.md`](docs/EXECUTABLE_SECRET_AUDIT.md) | Fase F: auditoria de segredos contra o executável real construído |
 | [`RELEASE-CANDIDATE.md`](RELEASE-CANDIDATE.md) | Resumo executivo desta release: versão, commit, hashes, contagem de testes, reprodutibilidade, limitações, e o portão de release explícito |
 
 ## O que este programa garante (e o que não garante)
