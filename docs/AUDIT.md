@@ -125,7 +125,30 @@ python3 -m venv /tmp/audit-venv && /tmp/audit-venv/bin/pip install mnemonic
 /tmp/audit-venv/bin/python -m unittest tests.test_dev_cross_check_reference_impl -v
 ```
 
-## 6. O que NÃO está neste repositório (e por quê)
+## 6. O que `selftest` garante — e o que ele NÃO garante
+
+**`selftest` verifica corretude computacional (testes de resposta
+conhecida), não a ausência de backdoors.** Uma auditoria adversarial
+(`docs/REDTEAM.md`, seção 5.1) construiu um artefato `.pyz`, a partir do
+código-fonte real, com `combine.py` alterado para vazar a entropia
+combinada via `stderr`. `selftest` continuou reportando
+`RESULTADO GERAL: PASSOU`, porque cada teste de resposta conhecida (KAT)
+recebeu a resposta CORRETA — o backdoor só acrescentou um efeito
+colateral (uma escrita extra em `stderr`), e nenhum KAT verifica a
+AUSÊNCIA de efeitos colaterais além do valor de retorno. Em contraste, a
+mesma auditoria confirmou que uma wordlist embutida adulterada (1 palavra
+trocada) **é** detectada por `selftest`, via o hash SHA-256 comparado
+contra `WORDLIST_SHA256`.
+
+**A conclusão prática:** rodar `selftest` contra um artefato cuja
+proveniência você não verificou dá falsa confiança. A única defesa real
+contra um artefato (ou uma cópia do código-fonte) adulterado é comparar
+seu hash contra um build que **você mesmo** reproduziu (`make repro`,
+seção 5) a partir de um código-fonte que **você mesmo** revisou (seção 3).
+`selftest` é uma checagem de sanidade sobre uma instalação que você já
+confia ser a correta — não um substituto para essa confiança.
+
+## 7. O que NÃO está neste repositório (e por quê)
 
 - **Nenhum binário pré-compilado é commitado.** `entropyforge.pyz` é
   sempre gerado localmente por `tools/build_pyz.py`; confiar em um binário

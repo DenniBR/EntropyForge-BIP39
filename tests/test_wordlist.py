@@ -45,42 +45,59 @@ class WordlistIntegrityTests(unittest.TestCase):
 
 class WordlistTamperDetectionTests(unittest.TestCase):
     """Simula uma wordlist adulterada chamando as validacoes internas
-    diretamente com dados forjados, sem tocar o arquivo real em disco."""
+    diretamente com dados forjados, sem tocar o arquivo real em disco.
+
+    IMPORTANTE (correcao de um teste mascarado encontrada em auditoria
+    adversarial, ver docs/REDTEAM.md): `_validate(words, raw)` checa o
+    hash de `raw` ANTES de checar ordenacao/duplicatas/ASCII em `words`.
+    As versoes anteriores destas quatro checagens recalculavam `raw` a
+    partir da lista JA ADULTERADA (`"\n".join(words)...`), o que muda o
+    hash e faz a checagem de hash disparar PRIMEIRO -- mascarando
+    completamente se a checagem especifica (ordenacao, duplicata, ASCII)
+    testada por cada metodo realmente funciona. Confirmado por mutation
+    testing: remover a checagem de ordenacao ou de duplicatas do codigo-
+    fonte NAO fazia nenhum teste falhar. A correcao usa os bytes ORIGINAIS
+    corretos (hash valido) e corrompe SO a lista `words` em memoria, para
+    que a execucao realmente chegue na checagem especifica sendo testada.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.original_words = list(wordlist.load_wordlist())
+        cls.original_raw = importlib.resources.files("entropyforge").joinpath(
+            "data", "english.txt"
+        ).read_bytes()
+        # pre-condicao: o hash dos bytes originais deve bater, senao os
+        # testes abaixo estariam testando a checagem errada por acidente.
+        assert hashlib.sha256(cls.original_raw).hexdigest() == wordlist.WORDLIST_SHA256
 
     def test_wrong_hash_rejected(self):
-        fake_words = list(wordlist.load_wordlist())
-        fake_raw = ("\n".join(fake_words) + "\n").encode("ascii")
-        # adultera 1 byte do conteudo bruto -> hash diverge
-        tampered = bytearray(fake_raw)
-        tampered[0] ^= 0xFF
+        tampered = bytearray(self.original_raw)
+        tampered[0] ^= 0xFF  # adultera 1 byte do conteudo bruto -> hash diverge
         with self.assertRaises(wordlist.WordlistError):
-            wordlist._validate(fake_words, bytes(tampered))
+            wordlist._validate(self.original_words, bytes(tampered))
 
     def test_wrong_word_count_rejected(self):
-        raw = importlib.resources.files("entropyforge").joinpath("data", "english.txt").read_bytes()
         with self.assertRaises(wordlist.WordlistError):
-            wordlist._validate(["abandon", "ability"], raw)
+            wordlist._validate(["abandon", "ability"], self.original_raw)
 
     def test_duplicate_word_rejected(self):
-        words = list(wordlist.load_wordlist())
-        words[1] = words[0]  # introduz duplicata
-        raw = ("\n".join(words) + "\n").encode("ascii")
+        words = list(self.original_words)
+        words[1] = words[0]  # introduz duplicata; RAW permanece o original (hash valido)
         with self.assertRaises(wordlist.WordlistError):
-            wordlist._validate(words, raw)
+            wordlist._validate(words, self.original_raw)
 
     def test_unsorted_rejected(self):
-        words = list(wordlist.load_wordlist())
-        words[0], words[1] = words[1], words[0]
-        raw = ("\n".join(words) + "\n").encode("ascii")
+        words = list(self.original_words)
+        words[0], words[1] = words[1], words[0]  # RAW permanece o original (hash valido)
         with self.assertRaises(wordlist.WordlistError):
-            wordlist._validate(words, raw)
+            wordlist._validate(words, self.original_raw)
 
     def test_non_ascii_word_rejected(self):
-        words = list(wordlist.load_wordlist())
-        words[0] = "café"
-        raw = ("\n".join(words) + "\n").encode("utf-8")
+        words = list(self.original_words)
+        words[0] = "café"  # RAW permanece o original (hash valido)
         with self.assertRaises(wordlist.WordlistError):
-            wordlist._validate(words, raw)
+            wordlist._validate(words, self.original_raw)
 
 
 if __name__ == "__main__":

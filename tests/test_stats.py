@@ -8,14 +8,18 @@ import math
 import os
 import unittest
 from collections import Counter
+from unittest import mock
 
+from entropyforge import stats
 from entropyforge.stats import (
+    ALPHA_FAMILYWISE,
     MIN_BATTERY_ROLLS,
     NUM_VERDICT_TESTS,
     StatsError,
     Verdict,
     _runs_exact_pvalue,
     face_counts,
+    holm_bonferroni,
     run_battery,
 )
 
@@ -143,6 +147,55 @@ class FalsePositiveRateSanityTests(unittest.TestCase):
         # evidencia esmagadora de um bug (a probabilidade disso acontecer
         # por acaso, com a taxa nominal, e virtualmente zero).
         self.assertLess(fails / trials, 0.15, f"taxa de falso positivo suspeita: {fails}/{trials}")
+
+
+class HolmIntegrationTests(unittest.TestCase):
+    """Regressao encontrada por mutation testing (docs/REDTEAM.md):
+    substituir a chamada a `holm_bonferroni` dentro de `run_battery` por
+    um limiar bruto por teste (`p <= alpha`, sem corrigir para testes
+    multiplos) fazia TODA a suite de testes passar sem nenhuma falha --
+    inclusive `FalsePositiveRateSanityTests` acima, cujo limite de 15% e
+    frouxo demais para pegar a inflacao (~2x) causada pela falta de
+    correcao. Estes dois testes verificam especificamente essa fiacao,
+    no nivel de integracao (nao so a funcao `holm_bonferroni` isolada,
+    ja coberta em test_specialfunc.py)."""
+
+    def test_run_battery_calls_holm_bonferroni_with_right_arity(self):
+        digits = self._some_digits()
+        with mock.patch("entropyforge.stats.holm_bonferroni", wraps=holm_bonferroni) as spy:
+            run_battery(digits)
+        spy.assert_called_once()
+        p_values_arg, alpha_arg = spy.call_args.args[0], spy.call_args.args[1]
+        self.assertEqual(len(p_values_arg), NUM_VERDICT_TESTS)
+        self.assertEqual(alpha_arg, ALPHA_FAMILYWISE)
+
+    def test_verdict_rejections_match_independent_holm_computation(self):
+        # Recalcula holm_bonferroni de forma independente sobre os MESMOS
+        # p-valores que run_battery expos, e compara com o que run_battery
+        # realmente decidiu (`rejected_after_holm`) para cada teste da
+        # familia. Uma implementacao que use um limiar bruto (ou qualquer
+        # outra coisa que nao seja Holm sobre esses p-valores) divergiria
+        # com alta probabilidade em pelo menos uma das 20 repeticoes.
+        for _ in range(20):
+            digits = self._some_digits()
+            battery = run_battery(digits)
+            holm_family = [t for t in battery.tests if t.name != "face_frequency"]
+            self.assertEqual(len(holm_family), NUM_VERDICT_TESTS)
+            p_values = [t.p_value for t in holm_family]
+            expected = holm_bonferroni(p_values, ALPHA_FAMILYWISE)
+            actual = [t.rejected_after_holm for t in holm_family]
+            self.assertEqual(actual, expected)
+
+    @staticmethod
+    def _some_digits() -> str:
+        out = []
+        while len(out) < 150:
+            for byte in os.getrandom(64, 0):
+                if byte < 252:
+                    out.append(str(byte % 6 + 1))
+                    if len(out) == 150:
+                        break
+        return "".join(out)
 
 
 if __name__ == "__main__":

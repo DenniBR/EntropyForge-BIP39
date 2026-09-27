@@ -1,0 +1,15 @@
+=== fuzz aleatorio (10000 entropias, todos os tamanhos suportados) ===
+problemas: 0
+
+=== fuzz de fronteiras de bit (bit unico + prefixos de 1s, todos os tamanhos) ===
+problemas: 0
+
+=== fuzz de mnemonics adulterados (5000 tentativas, 1 palavra trocada) ===
+problemas reais: 0  (coincidencias esperadas e registradas: 5)
+  INFO: tampered mnemonic coincidentally valid with SAME entropy: 'below cupboard identify leisure thunder tennis body science dream enhance slam supply charge trick eternal acid question razor soap capital cotton index strategy swim'
+  INFO: tampered mnemonic coincidentally valid with SAME entropy: 'course punch goat paddle material air wood broom detail size veteran horse asset zero cherry sword manage lab glow funny lesson foil type say'
+  INFO: tampered mnemonic coincidentally valid with SAME entropy: 'brush you disorder asset raccoon unlock lawsuit path behind age truck ride luggage story symbol pattern future valve fever squirrel renew recycle wedding draw'
+  INFO: tampered mnemonic coincidentally valid with SAME entropy: 'conduct shiver swim lounge fuel rent deposit twist waste wheat chief depart vehicle element brisk fiscal express jealous hammer bone brain combine inject toe'
+  INFO: tampered mnemonic coincidentally valid with SAME entropy: 'primary fancy actor organ vessel soap clown quality blanket chef rapid hire left tide note slogan elbow health digital utility pole parent kitten celery'
+
+TOTAL DE PROBLEMAS REAIS ENCONTRADOS: 0

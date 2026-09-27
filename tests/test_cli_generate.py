@@ -14,6 +14,7 @@ from entropyforge.cli import (
     DICE_FAIL_OVERRIDE_PHRASE,
     NETWORK_OVERRIDE_PHRASE,
     TerminalIO,
+    _validate_rolls_arg,
     build_parser,
     cmd_generate,
 )
@@ -72,10 +73,38 @@ def _extract_mnemonic_block(blob: str) -> list[str]:
     return re.findall(r"\d+\.\s+(\S+)", m.group(1))
 
 
+def _real_d6_not_rejected(n: int, max_attempts: int = 50) -> str:
+    """Como `_real_d6`, mas re-sorteia se a bateria estatistica rejeitar
+    a sequencia (FAIL).
+
+    Correcao de um teste instavel (flaky) encontrado em auditoria
+    adversarial (docs/REDTEAM.md): como `_real_d6` usa entropia real do
+    SO, a bateria estatistica REJEITA o resultado com a taxa nominal
+    (~2-3%, ver docs/simulation_results.txt) por pura chance. Os testes
+    desta classe (`SuccessfulGenerateTests`) nao fornecem a confirmacao de
+    override de FAIL, entao uma sequencia rejeitada faz o teste abortar
+    antes de exibir o mnemonic -- uma falha esporadica e reproduzida em
+    ~15-30% das execucoes da classe inteira (6 metodos, cada um com uma
+    sequencia nova). Como o proprio comportamento em caso de FAIL ja tem
+    testes dedicados (`StatisticalFailureOverrideTests`), esta funcao
+    simplesmente re-sorteia ate obter uma sequencia que a bateria aceite,
+    o que continua sendo entropia real do SO, so que condicionada a nao
+    ser um dos ~2-3% de casos que a bateria rejeitaria.
+    """
+    for _ in range(max_attempts):
+        digits = _real_d6(n)
+        if stats.run_battery(digits).overall_verdict != stats.Verdict.FAIL:
+            return digits
+    raise AssertionError(
+        f"nao obteve uma sequencia aceita pela bateria em {max_attempts} tentativas "
+        "(extremamente improvavel; investigar taxa de falso positivo)"
+    )
+
+
 class SuccessfulGenerateTests(unittest.TestCase):
     def setUp(self):
         self.budget = entropy_calc.compute_budget()
-        self.digits = _real_d6(self.budget.rolls_operational)
+        self.digits = _real_d6_not_rejected(self.budget.rolls_operational)
         self.b = os.getrandom(32, 0)
         self.expected_a = dice.encode(self.digits)
         self.expected_e = combine.combine(self.expected_a, self.b)
@@ -113,15 +142,25 @@ class SuccessfulGenerateTests(unittest.TestCase):
         self.assertIsNone(re.search(r"[1-6]{20,}", blob))
 
     def test_mnemonic_full_string_appears_only_inside_alt_screen_block(self):
-        # Checagem por PALAVRA INTEIRA (limite de palavra), nao substring:
-        # varias palavras do BIP-39 sao substrings comuns de texto normal
-        # (ex.: "come" dentro de "Recomenda", "hip" dentro de "BIP-39"),
-        # entao um assertNotIn ingenuo daria falso positivo.
+        # Checagem por PARES DE PALAVRAS CONSECUTIVAS do mnemonic, nao por
+        # palavra isolada. Duas rodadas anteriores desta checagem por
+        # palavra isolada (mesmo com limite de palavra via \b) deram falso
+        # positivo (docs/REDTEAM.md): "come" como substring de "Recomenda",
+        # "hip" como substring de "BIP-39", e depois "use" (palavra INTEIRA
+        # em portugues E uma das 2048 palavras da wordlist) aparecendo
+        # legitimamente no texto da interface ("... ou use a confirmacao
+        # ..."). Com um vocabulario de 2048 palavras em ingles comum, uma
+        # palavra isolada colidir com o texto normal da interface e
+        # esperado, nao um vazamento. Um PAR de palavras consecutivas do
+        # mnemonic (na mesma ordem) aparecer fora do bloco, por outro
+        # lado, tem probabilidade desprezivel por acaso e SERIA um sinal
+        # real de vazamento.
         rc, io_builder = self._run()
         blob = io_builder.blob
         before, _, after_marker = blob.partition("<<<ALT_SCREEN_ENTER>>>")
-        for word in self.expected_mnemonic.split():
-            self.assertNotRegex(before, rf"\b{re.escape(word)}\b")
+        words = self.expected_mnemonic.split()
+        for w1, w2 in zip(words, words[1:]):
+            self.assertNotRegex(before, rf"\b{re.escape(w1)}\s+{re.escape(w2)}\b")
 
     def test_transcription_confirmation_success(self):
         rc, io_builder = self._run(verify_transcription_answer="s", retyped=self.expected_mnemonic)
@@ -165,7 +204,7 @@ class NetworkCheckRefusalTests(unittest.TestCase):
     def test_proceeds_with_correct_confirmation(self):
         with mock.patch("entropyforge.guard.list_active_network_interfaces", return_value=["eth0"]):
             budget = entropy_calc.compute_budget()
-            digits = _real_d6(budget.rolls_operational)
+            digits = _real_d6_not_rejected(budget.rolls_operational)
             io_builder = FakeIOBuilder([digits], [NETWORK_OVERRIDE_PHRASE, "n"], os.getrandom(32, 0))
             io = io_builder.build()
             args = build_parser().parse_args(["generate", "--override-offline-check"])
@@ -225,7 +264,7 @@ class StatisticalFailureOverrideTests(unittest.TestCase):
 class RollsCountMismatchTests(unittest.TestCase):
     def test_retries_on_wrong_length_then_succeeds(self):
         budget = entropy_calc.compute_budget()
-        good_digits = _real_d6(budget.rolls_operational)
+        good_digits = _real_d6_not_rejected(budget.rolls_operational)
         too_short = good_digits[:10]
         b = os.getrandom(32, 0)
         io_builder = FakeIOBuilder(
@@ -235,6 +274,52 @@ class RollsCountMismatchTests(unittest.TestCase):
         args = build_parser().parse_args(["generate", "--override-offline-check"])
         rc = cmd_generate(args, io)
         self.assertEqual(rc, 0)
+
+
+class RollsArgumentValidationTests(unittest.TestCase):
+    """Regressao para um bug real encontrado em auditoria adversarial
+    (docs/REDTEAM.md): `--rolls 0` era silenciosamente ignorado (0 e
+    falsy em Python) e `--rolls` negativo travava `generate` em um laco
+    infinito dentro de `_read_dice_hidden` (nenhuma entrada real jamais
+    satisfaria `len(raw) == target_n` para um `target_n` negativo)."""
+
+    def test_validator_rejects_zero(self):
+        self.assertIsNotNone(_validate_rolls_arg(0))
+
+    def test_validator_rejects_negative(self):
+        self.assertIsNotNone(_validate_rolls_arg(-5))
+
+    def test_validator_rejects_above_structural_limit(self):
+        self.assertIsNotNone(_validate_rolls_arg(dice.MAX_ROLLS + 1))
+
+    def test_validator_accepts_none_and_sane_values(self):
+        self.assertIsNone(_validate_rolls_arg(None))
+        self.assertIsNone(_validate_rolls_arg(1))
+        self.assertIsNone(_validate_rolls_arg(dice.MAX_ROLLS))
+
+    def _run_generate_with_rolls(self, rolls_value: int) -> tuple[int, list[str]]:
+        io_builder = FakeIOBuilder([], [NETWORK_OVERRIDE_PHRASE], os.getrandom(32, 0))
+        io = io_builder.build()
+        args = build_parser().parse_args(
+            ["generate", "--override-offline-check", "--rolls", str(rolls_value)]
+        )
+        rc = cmd_generate(args, io)
+        return rc, io_builder.captured
+
+    def test_generate_rejects_zero_rolls_without_hanging(self):
+        # Antes da correcao, --rolls 0 era substituido silenciosamente
+        # pelo valor padrao calculado; agora deve ser um erro explicito.
+        rc, captured = self._run_generate_with_rolls(0)
+        self.assertNotEqual(rc, 0)
+        self.assertTrue(any("positivo" in line for line in captured))
+
+    def test_generate_rejects_negative_rolls_without_hanging(self):
+        # Antes da correcao, isto entrava em loop infinito em
+        # _read_dice_hidden (regressao verificada por este teste ter um
+        # tempo de execucao normal, nao travar a suite inteira).
+        rc, captured = self._run_generate_with_rolls(-5)
+        self.assertNotEqual(rc, 0)
+        self.assertTrue(any("positivo" in line for line in captured))
 
 
 if __name__ == "__main__":

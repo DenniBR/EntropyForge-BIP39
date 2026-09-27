@@ -1,0 +1,35 @@
+=== 1) generate com stdin/stdout redirecionados (nao-TTY) ===
+  rc= 3  tem 'TTY' no stderr: False
+
+=== 2) generate com --rolls extremos ===
+  --rolls 0: rc=3
+  --rolls -1: rc=3
+  --rolls -999999: rc=3
+
+=== 3) vector com Unicode/bytes invalidos/strings enormes ===
+  vector '--entropy-hex 000000000000000000000000000000'               -> rc=2
+  vector '--entropy-hex gggggggggggggggggggggggggggggg'               -> rc=2
+  vector '--entropy-hex 000000000000000000000000000000'               -> rc=2
+  vector '--mnemonic 😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀'                        -> rc=2
+  vector '--a-digits 111111111111111111111111111111 --b-hex 000000000000000000000000000000' -> rc=0
+  vector '--a-digits ١٢٣٤٥٦ --b-hex 000000000000000000000000000000'   -> rc=2
+
+=== 4) selftest / generate com variavel de ambiente 'canario' ===
+  selftest com env canario: rc=0, vazou=False
+
+=== 5) generate interrompido (SIGINT) durante espera de input ===
+  apos SIGINT: returncode=3
+
+=== 6) calibrate com --rolls negativo/zero ===
+  calibrate --rolls 0: rc=2
+
+=== 7) argumento desconhecido / malformado ===
+  args=['generate', '--rolls'] -> rc=2
+  args=['vector', '--entropy-hex'] -> rc=2
+  args=['nao-existe'] -> rc=2
+  args=[] -> rc=2
+
+=== 8) checagem estatica: entropyforge/ le os.environ em algum lugar? ===
+  nenhum uso de os.environ/getenv encontrado
+
+=== RESUMO: 0 problema(s) encontrados ===

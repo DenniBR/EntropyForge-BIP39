@@ -103,6 +103,68 @@ class AuditHookBlocksFileWriteTests(unittest.TestCase):
         )
         self.assertIn("OK_BLOCKED", proc.stdout)
 
+    def test_blocks_raw_os_open_with_write_flags(self):
+        # Regressao (docs/REDTEAM.md, mutation testing): este caminho
+        # (os.open() de baixo nivel, que passa mode=None e usa `flags`
+        # em vez de uma string de modo) e INDEPENDENTE do caminho testado
+        # em test_blocks_write_mode_open acima (que usa o builtin `open`
+        # com uma string de modo). Uma mascara `_WRITE_FLAGS` enfraquecida
+        # (ex.: faltando O_CREAT) so seria pega por um teste que exercita
+        # `os.open` diretamente -- o que este teste faz.
+        proc = _run_snippet(
+            textwrap.dedent(
+                """
+                from entropyforge import guard
+                guard.activate()
+                import os
+                try:
+                    os.open("/tmp/entropyforge_should_not_exist_raw.bin", os.O_WRONLY | os.O_CREAT, 0o600)
+                    print("FAIL_NOT_BLOCKED")
+                except guard.GuardViolation:
+                    print("OK_BLOCKED")
+                """
+            )
+        )
+        self.assertIn("OK_BLOCKED", proc.stdout)
+
+    def test_blocks_each_write_flag_in_isolation(self):
+        # Testa cada flag de escrita SOZINHA (sem O_WRONLY/O_CREAT junto),
+        # para isolar de verdade a cobertura de cada bit especifico da
+        # mascara `_WRITE_FLAGS` -- nao apenas confirmar que a combinacao
+        # usual (O_WRONLY|O_CREAT) e pega, o que ja e coberto pelo teste
+        # anterior e nao isolaria uma mascara com O_APPEND/O_TRUNC/O_EXCL
+        # faltando.
+        # O_CREAT sozinho (sem O_WRONLY/O_RDWR) ja e uma escrita real:
+        # confirmado por PoC (docs/REDTEAM.md) que `os.open(path, os.O_CREAT)`
+        # CRIA um arquivo vazio no disco mesmo sem nenhuma flag de acesso
+        # de escrita. Ja O_APPEND/O_TRUNC/O_EXCL sozinhos (sem O_WRONLY/
+        # O_RDWR) NAO permitem escrever conteudo nenhum (confirmado: da
+        # "Bad file descriptor"), entao sua presenca na mascara e defesa
+        # em profundidade, nao a unica barreira -- mas testamos todos
+        # mesmo assim, ja que sao baratos e a mascara deve continuar
+        # completa.
+        for flag_name in ("O_RDWR", "O_CREAT", "O_APPEND", "O_TRUNC", "O_EXCL"):
+            proc = _run_snippet(
+                textwrap.dedent(
+                    f"""
+                    from entropyforge import guard
+                    guard.activate()
+                    import os
+                    try:
+                        os.open("/tmp/entropyforge_should_not_exist_{flag_name}.bin", os.{flag_name})
+                        print("FAIL_NOT_BLOCKED")
+                    except guard.GuardViolation:
+                        print("OK_BLOCKED")
+                    except OSError:
+                        # o SO pode recusar a combinacao de flags por outro
+                        # motivo antes mesmo do guard atuar; o que importa
+                        # aqui e que NUNCA seja "FAIL_NOT_BLOCKED".
+                        print("OK_BLOCKED")
+                    """
+                )
+            )
+            self.assertIn("OK_BLOCKED", proc.stdout, msg=f"flag {flag_name} nao foi bloqueada: {proc.stdout} {proc.stderr}")
+
     def test_read_mode_still_works(self):
         proc = _run_snippet(
             textwrap.dedent(

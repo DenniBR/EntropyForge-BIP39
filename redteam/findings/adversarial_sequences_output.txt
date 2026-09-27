@@ -1,0 +1,30 @@
+N (operacional) = 127
+
+construcao                                     entropia_real<=  entropia_honesta   veredito  detalhe por teste
+--------------------------------------------------------------------------------------------------------------
+constante (todas as faces = 3)                             0.0             328.3       FAIL  face_frequency=FAIL, serial_difference=FAIL, repeats=FAIL, runs=PASS, autocorrelation_lag1=PASS, autocorrelation_lag2=PASS, autocorrelation_lag3=PASS
+   -> 0 bits: unica sequencia possivel, conhecida a priori
+alternando 1/6                                             1.0             328.3       FAIL  face_frequency=FAIL, serial_difference=FAIL, repeats=FAIL, runs=FAIL, autocorrelation_lag1=FAIL, autocorrelation_lag2=FAIL, autocorrelation_lag3=FAIL
+   -> <= 1 bit: so 2 sequencias possiveis (comecar com 1 ou com 6)
+ciclo 1..6 repetido (periodo 6)                            0.0             328.3       FAIL  face_frequency=PASS, serial_difference=FAIL, repeats=FAIL, runs=FAIL, autocorrelation_lag1=PASS, autocorrelation_lag2=FAIL, autocorrelation_lag3=FAIL
+   -> 0 bits: unica sequencia possivel dado o padrao
+digitos de pi em base 6                                    0.0             328.3       PASS  face_frequency=PASS, serial_difference=PASS, repeats=PASS, runs=PASS, autocorrelation_lag1=PASS, autocorrelation_lag2=PASS, autocorrelation_lag3=PASS
+   -> 0 bits: totalmente determinada por 'calcule os digitos de pi em base 6', que e informacao publica de tamanho fixo (nao escala com n)
+LCG (glibc constants, seed=12345)                          2.0             328.3       FAIL  face_frequency=WARN, serial_difference=FAIL, repeats=FAIL, runs=PASS, autocorrelation_lag1=PASS, autocorrelation_lag2=PASS, autocorrelation_lag3=PASS
+   -> <= log2(4) ~= 2 bits: a sequencia inteira e determinada pelos 4 parametros publicos (seed, a, c, m) do gerador, que um atacante pode adivinhar entre um numero pequeno de escolhas 'obvias'
+bloco de 12 repetido                                       0.0             328.3       FAIL  face_frequency=PASS, serial_difference=FAIL, repeats=FAIL, runs=FAIL, autocorrelation_lag1=WARN, autocorrelation_lag2=PASS, autocorrelation_lag3=PASS
+   -> 0 bits: unica sequencia dado o bloco de 12 lancamentos + a regra de repeticao
+segunda metade = copia da primeira (base: pi)              0.0             328.3       FAIL  face_frequency=PASS, serial_difference=FAIL, repeats=PASS, runs=WARN, autocorrelation_lag1=WARN, autocorrelation_lag2=PASS, autocorrelation_lag3=PASS
+   -> 0 bits: mesma contagem de informacao que a primeira metade sozinha (que ja e 0, por ser pi), mas ilustra que best-case a entropia real de uma sequencia de tamanho n com esse padrao e <= H(primeira metade)
+segunda metade = espelho (7-f) da primeira (base: pi)              0.0             328.3       WARN  face_frequency=PASS, serial_difference=WARN, repeats=PASS, runs=PASS, autocorrelation_lag1=PASS, autocorrelation_lag2=PASS, autocorrelation_lag3=PASS
+   -> 0 bits pela mesma razao acima
+Markov 'ficar com prob 1/3'                              310.7             328.3       FAIL  face_frequency=PASS, serial_difference=FAIL, repeats=FAIL, runs=FAIL, autocorrelation_lag1=FAIL, autocorrelation_lag2=PASS, autocorrelation_lag3=PASS
+   -> (n-1)*H(Bernoulli-like por passo) = 310.7 bits (< honesto=328.3 se stay>1/6)
+Markov 'ficar com prob 1/6 (honesto, mas via LCG fraco)'            325.7             328.3       FAIL  face_frequency=PASS, serial_difference=FAIL, repeats=FAIL, runs=PASS, autocorrelation_lag1=PASS, autocorrelation_lag2=PASS, autocorrelation_lag3=PASS
+   -> (n-1)*H(Bernoulli-like por passo) = 325.7 bits (< honesto=328.3 se stay>1/6)
+Markov 'ficar com prob 2/5'                              297.9             328.3       FAIL  face_frequency=WARN, serial_difference=FAIL, repeats=FAIL, runs=FAIL, autocorrelation_lag1=FAIL, autocorrelation_lag2=PASS, autocorrelation_lag3=PASS
+   -> (n-1)*H(Bernoulli-like por passo) = 297.9 bits (< honesto=328.3 se stay>1/6)
+
+CONSTRUCOES COM ENTROPIA REAL < 50 BITS QUE NAO FORAM REJEITADAS (PASS/WARN): 2 de 11
+  - digitos de pi em base 6: veredito=PASS, entropia_real<=0.0 bits
+  - segunda metade = espelho (7-f) da primeira (base: pi): veredito=WARN, entropia_real<=0.0 bits

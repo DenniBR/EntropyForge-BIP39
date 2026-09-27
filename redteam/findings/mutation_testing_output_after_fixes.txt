@@ -1,0 +1,41 @@
+--- aplicando mutante: bip39_checksum_wrong_end_of_digest ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: bip39_checksum_off_by_one_bits ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: combine_wrong_order ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: combine_wrong_hash ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: dice_encode_little_endian ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: dice_encode_width_no_rounding ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: wordlist_skip_sorted_check ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: wordlist_skip_duplicate_check ---
+    SURVIVED (nenhum teste pegou o mutante)
+    ** LACUNA DE COBERTURA: remove a verificacao de palavras duplicadas **
+--- aplicando mutante: stats_skip_holm_use_raw_alpha ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: guard_flags_missing_o_creat ---
+    SURVIVED (nenhum teste pegou o mutante)
+    ** LACUNA DE COBERTURA: remove O_CREAT/O_APPEND/O_TRUNC/O_EXCL da mascara de flags de escrita bloqueadas em os.open() (mode=None) -- so pega O_WRONLY/O_RDWR explicitos **
+--- aplicando mutante: entropy_calc_off_by_one_operational ---
+    KILLED (algum teste pegou o mutante)
+
+=== RESUMO ===
+bip39_checksum_wrong_end_of_digest       KILLED (algum teste pegou o mutante)
+bip39_checksum_off_by_one_bits           KILLED (algum teste pegou o mutante)
+combine_wrong_order                      KILLED (algum teste pegou o mutante)
+combine_wrong_hash                       KILLED (algum teste pegou o mutante)
+dice_encode_little_endian                KILLED (algum teste pegou o mutante)
+dice_encode_width_no_rounding            KILLED (algum teste pegou o mutante)
+wordlist_skip_sorted_check               KILLED (algum teste pegou o mutante)
+wordlist_skip_duplicate_check            SURVIVED (nenhum teste pegou o mutante)
+stats_skip_holm_use_raw_alpha            KILLED (algum teste pegou o mutante)
+guard_flags_missing_o_creat              SURVIVED (nenhum teste pegou o mutante)
+entropy_calc_off_by_one_operational      KILLED (algum teste pegou o mutante)
+
+2 de 11 mutantes SOBREVIVERAM (lacunas de cobertura reais).
+  - wordlist_skip_duplicate_check: remove a verificacao de palavras duplicadas
+  - guard_flags_missing_o_creat: remove O_CREAT/O_APPEND/O_TRUNC/O_EXCL da mascara de flags de escrita bloqueadas em os.open() (mode=None) -- so pega O_WRONLY/O_RDWR explicitos

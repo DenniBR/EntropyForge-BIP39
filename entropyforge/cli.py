@@ -66,6 +66,32 @@ def _yes_no(io: TerminalIO, prompt: str, default_no: bool = True) -> bool:
     return ans in ("s", "sim", "y", "yes")
 
 
+def _validate_rolls_arg(value: int | None) -> str | None:
+    """Valida o argumento `--rolls` (usado por `generate` e `calibrate`).
+    Devolve uma mensagem de erro se `value` for estruturalmente invalido,
+    ou None se for aceitavel (incluindo `None`, que significa "nao
+    informado, use o padrao").
+
+    Corrige um bug real encontrado em auditoria adversarial (ver
+    docs/REDTEAM.md): `--rolls 0` era descartado silenciosamente porque
+    `args.rolls if args.rolls else default` trata 0 como falsy em Python
+    (o 0 explicito do usuario virava o padrao calculado, sem aviso), e
+    `--rolls` negativo fazia `_read_dice_hidden`/`_read_digits_visible`
+    entrar em um laco infinito, pois nenhuma entrada real tem comprimento
+    negativo (a condicao `len(raw) != target_n` nunca seria satisfeita).
+    """
+    if value is None:
+        return None
+    if value <= 0:
+        return f"--rolls deve ser um inteiro positivo; recebido {value}"
+    if value > dice.MAX_ROLLS:
+        return (
+            f"--rolls={value} excede o limite estrutural da codificacao "
+            f"(prefixo uint16, maximo {dice.MAX_ROLLS})"
+        )
+    return None
+
+
 # ---------------------------------------------------------------------------
 # selftest
 # ---------------------------------------------------------------------------
@@ -153,6 +179,10 @@ def _read_digits_visible(io: TerminalIO, target_n: int) -> str:
 
 
 def cmd_calibrate(args: argparse.Namespace, io: TerminalIO) -> int:
+    rolls_error = _validate_rolls_arg(args.rolls)
+    if rolls_error:
+        io.warn(rolls_error)
+        return 2
     target_n = args.rolls
     io.write(
         "=== calibrate: coleta de lancamentos DESCARTAVEIS para medir o dado ===\n"
@@ -290,7 +320,11 @@ def cmd_generate(args: argparse.Namespace, io: TerminalIO) -> int:
         "caracterizar o proprio dado com uma amostra grande e descartavel."
     )
 
-    target_n = args.rolls if args.rolls else budget.rolls_operational
+    rolls_error = _validate_rolls_arg(args.rolls)
+    if rolls_error:
+        io.warn(rolls_error)
+        return 2
+    target_n = args.rolls if args.rolls is not None else budget.rolls_operational
     if target_n < budget.rolls_theoretical_honest:
         io.warn(
             f"{target_n} lancamentos e MENOS que o minimo teorico "
