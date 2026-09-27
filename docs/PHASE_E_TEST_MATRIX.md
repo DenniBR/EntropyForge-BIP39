@@ -37,25 +37,26 @@ documentação verificável — não uma alegação sem evidência.
 | 26 | Fuzzing final: dado/encoding/mnemonic/checksum/vector/CLI, seed/método/contagem/crashes documentados | `redteam/phase_e/scripts/fuzz_final.py`, `redteam/phase_e/findings/fuzz_final_output.txt`, `docs/REDTEAM.md` §12 — 63.060 iterações, 0 problemas reais | ✅ |
 | 27 | Revisão estática final com falsos positivos explicados | `docs/STATIC_SCAN_FINAL.md` — 85 ocorrências em `entropyforge/`, todas explicadas como falso positivo | ✅ |
 | 28 | Bug crítico de usabilidade real encontrado e corrigido (`guard` bloqueava `getpass`) | `docs/FINAL_SECURITY_REVIEW.md` §17, `entropyforge/guard.py`, `tests/test_guard.py::AuditHookAllowsDevTtyTests` | ✅ |
-| 29 | Consistência de documentação de ponta a ponta (números de teste, referências cruzadas, seções renomeadas) | pendente — tarefa seguinte desta mesma fase | ⏳ |
-| 30 | Teste de máquina limpa (`git archive`/checkout fresco) | pendente — tarefa seguinte desta mesma fase | ⏳ |
-| 31 | Cerimônia fictícia de ponta a ponta cruzada externamente (re-execução final, não confiar em "passou antes") | pendente — tarefa seguinte desta mesma fase | ⏳ |
-| 32 | Portão de release explícito (bloqueia em qualquer teste falhando, divergência externa, hash inconsistente, wordlist com problema, rede durante geração, vazamento conhecido, fallback inseguro, diferença de comportamento source/pyz, inconsistência de documentação) | pendente — tarefa seguinte desta mesma fase | ⏳ |
+| 29 | Consistência de documentação de ponta a ponta (números de teste, referências cruzadas, hashes de arquivo, seções renomeadas) | passagem dedicada nesta fase — contagens de testes/linhas/hashes recalculados em `docs/AUDIT.md`, `docs/FINAL_SECURITY_REVIEW.md`, `docs/INDEPENDENT_VERIFIER.md`, `docs/THREAT_MODEL.md`; 0 links quebrados (verificado programaticamente) | ✅ |
+| 30 | Teste de máquina limpa (`git archive`/checkout fresco) | `git archive HEAD` extraído para um diretório novo; `make test` (231), suíte de `independent-verifier` (129), `make build`, `make repro`, `make release`, `make verify-release` (PASS) e os testes de interrupção via `pty` real — todos passaram sem depender de estado do diretório de desenvolvimento | ✅ |
+| 31 | Cerimônia fictícia de ponta a ponta cruzada externamente (re-execução final, não confiar em "passou antes") | `vector` com A/B fictícios públicos → mnemonic recalculado do ZERO por uma reimplementação stdlib-only do encoding+combinação+BIP-39 (bateu exatamente) → BIP-32/BIP-44 até um endereço via `bip32utils` — ver `RELEASE-CANDIDATE.md`, seção "Cerimônia fictícia de ponta a ponta" | ✅ |
+| 32 | Portão de release explícito (bloqueia em qualquer teste falhando, divergência externa, hash inconsistente, wordlist com problema, rede durante geração, vazamento conhecido, fallback inseguro, diferença de comportamento source/pyz, inconsistência de documentação) | `RELEASE-CANDIDATE.md`, seção "Portão de release" — critérios explícitos + estado atual declarado (nenhuma condição de bloqueio presente) | ✅ |
 
 **Nota sobre o número "27" do requisito original:** esta matriz cresceu
 para 32 linhas ao mapear cada sub-requisito da Fase E individualmente
 (mais granular do que uma contagem redonda) — nenhum requisito foi
-comprimido ou omitido para bater um número específico; complessidão da
+comprimido ou omitido para bater um número específico; completude da
 cobertura importa mais do que a contagem exata.
 
 ## Estado agregado no momento em que esta matriz foi escrita
 
-- **28 de 32 itens: ✅ cobertos e verificados nesta sessão.**
-- **4 itens: ⏳ pendentes**, todos agendados para a etapa final desta
-  mesma fase (consistência de documentação, teste de máquina limpa,
-  cerimônia fictícia ponta a ponta, e o portão de release explícito) —
-  ver o próximo commit desta fase para o fechamento destes itens.
+- **32 de 32 itens: ✅ cobertos e verificados nesta sessão**, incluindo
+  reexecução completa em uma máquina limpa (item 30) — nenhum item foi
+  aceito com base em "já passou antes".
 - **231 testes unitários** (`python3 -B -m unittest discover -s tests`)
-  mais **63.060 iterações de fuzzing** (`redteam/phase_e/scripts/fuzz_final.py`)
-  passam nesta revisão, sem nenhum problema real encontrado além do bug
-  crítico já corrigido (item 28).
+  mais **129 testes do `independent-verifier`** mais **63.060 iterações
+  de fuzzing** (`redteam/phase_e/scripts/fuzz_final.py`) passam nesta
+  revisão, sem nenhum problema real encontrado além do bug crítico já
+  corrigido (item 28) — todos reconfirmados em `git archive HEAD` puro.
+- Ver `RELEASE-CANDIDATE.md` para o resumo executivo desta release e o
+  portão de release explícito.

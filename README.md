@@ -67,6 +67,7 @@ protege, e o que não protege).
 | [`docs/FINAL_SECURITY_REVIEW.md`](docs/FINAL_SECURITY_REVIEW.md) | Revisão de segurança final antes de considerar o projeto candidato a uso real |
 | [`docs/STATIC_SCAN_FINAL.md`](docs/STATIC_SCAN_FINAL.md) | Revisão estática final de `entropyforge/`, com todo falso positivo explicado |
 | [`docs/PHASE_E_TEST_MATRIX.md`](docs/PHASE_E_TEST_MATRIX.md) | Matriz consolidada de testes da Fase E (release de produção) |
+| [`RELEASE-CANDIDATE.md`](RELEASE-CANDIDATE.md) | Resumo executivo desta release: versão, commit, hashes, contagem de testes, reprodutibilidade, limitações, e o portão de release explícito |
 
 ## O que este programa garante (e o que não garante)
 
