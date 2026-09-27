@@ -2,11 +2,25 @@
 (sem TTY real). Este e o teste mais importante do projeto do ponto de
 vista de confidencialidade: verifica que NENHUMA saida do programa jamais
 contem A, B, E ou a sequencia de dados em qualquer formato reconhecivel, e
-que o mnemonic corresponde exatamente a SHA-256(A||B) -> BIP-39."""
+que o mnemonic corresponde exatamente a SHA-256(A||B) -> BIP-39.
 
+IMPORTANTE (achado de auditoria adversarial, Fase D): a `TerminalIO` falsa
+so registra o que passa pelas funcoes `write`/`warn`/etc. -- um trecho de
+codigo que escrevesse diretamente em `sys.stdout`/`sys.stderr` (contornando
+essa abstracao) NAO apareceria em `io_builder.blob`. Por isso `_run()`
+TAMBEM captura o stdout/stderr REAIS do processo (via `redirect_stdout`/
+`redirect_stderr`), e os testes de vazamento de segredo checam AMBAS as
+capturas -- nao so a abstrata. Antes desta correcao, um backdoor de
+laboratorio que chamava `sys.stdout.write(digest.hex())` diretamente em
+`combine.py` passava por TODOS os testes desta classe sem ser detectado
+(a string vazada aparecia literalmente no terminal de quem rodava os
+testes, mas nenhuma asserção a via)."""
+
+import io as _io_module
 import os
 import re
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
 from entropyforge import bip39, combine, dice, entropy_calc, stats
@@ -40,6 +54,11 @@ class FakeIOBuilder:
         self._hidden_iter = iter(hidden_lines)
         self._plain_iter = iter(plain_lines)
         self._os_entropy = os_entropy
+        # capturados por `run_capturing_real_stdio` (ver abaixo), NAO pela
+        # TerminalIO falsa -- fecham o buraco de um backdoor que escreve
+        # diretamente em sys.stdout/sys.stderr, contornando `write`/`warn`.
+        self.raw_stdout: str = ""
+        self.raw_stderr: str = ""
 
     def _read_hidden_line(self, prompt):
         return next(self._hidden_iter, "")
@@ -71,6 +90,19 @@ def _extract_mnemonic_block(blob: str) -> list[str]:
     m = re.search(r"<<<ALT_SCREEN_ENTER>>>\n(.*?)\n<<<ALT_SCREEN_LEAVE>>>", blob, re.S)
     assert m, "bloco de tela alternativa nao encontrado na saida capturada"
     return re.findall(r"\d+\.\s+(\S+)", m.group(1))
+
+
+def _run_capturing_real_stdio(fn, *args, **kwargs):
+    """Chama `fn(*args, **kwargs)` com stdout/stderr REAIS do processo
+    redirecionados para buffers, alem de qualquer captura feita por uma
+    TerminalIO falsa passada dentro de `kwargs`/`args`. Ve efeitos
+    colaterais que a abstracao `TerminalIO` NAO consegue ver (ex.: um
+    `sys.stdout.write(...)`/`print(...)` chamado diretamente por algum
+    codigo, contornando `io.write`/`io.warn`)."""
+    out, err = _io_module.StringIO(), _io_module.StringIO()
+    with redirect_stdout(out), redirect_stderr(err):
+        result = fn(*args, **kwargs)
+    return result, out.getvalue(), err.getvalue()
 
 
 def _real_d6_not_rejected(n: int, max_attempts: int = 50) -> str:
@@ -118,7 +150,9 @@ class SuccessfulGenerateTests(unittest.TestCase):
         io_builder = FakeIOBuilder(hidden_lines, plain_lines, self.b)
         io = io_builder.build()
         args = build_parser().parse_args(["generate", "--override-offline-check"])
-        rc = cmd_generate(args, io)
+        rc, raw_out, raw_err = _run_capturing_real_stdio(cmd_generate, args, io)
+        io_builder.raw_stdout = raw_out
+        io_builder.raw_stderr = raw_err
         return rc, io_builder
 
     def test_exit_code_zero(self):
@@ -132,14 +166,22 @@ class SuccessfulGenerateTests(unittest.TestCase):
 
     def test_no_secret_hex_leaks_anywhere(self):
         rc, io_builder = self._run()
-        blob = io_builder.blob
-        self.assertNotIn(self.expected_a.hex(), blob)
-        self.assertNotIn(self.b.hex(), blob)
-        self.assertNotIn(self.expected_e.hex(), blob)
-        self.assertNotIn(self.digits, blob)
-        # tambem garante que nenhuma janela contigua de 20+ digitos 1-6
-        # (parte da sequencia bruta) aparece em lugar nenhum da saida.
-        self.assertIsNone(re.search(r"[1-6]{20,}", blob))
+        # checa a captura da TerminalIO falsa E o stdout/stderr REAIS do
+        # processo (ver docstring do modulo e `_run_capturing_real_stdio`)
+        # -- um backdoor que escreva direto em sys.stdout/sys.stderr,
+        # contornando `io.write`/`io.warn`, so e pego pela segunda.
+        for label, blob in (
+            ("TerminalIO falsa", io_builder.blob),
+            ("stdout real do processo", io_builder.raw_stdout),
+            ("stderr real do processo", io_builder.raw_stderr),
+        ):
+            self.assertNotIn(self.expected_a.hex(), blob, msg=f"vazou em {label}")
+            self.assertNotIn(self.b.hex(), blob, msg=f"vazou em {label}")
+            self.assertNotIn(self.expected_e.hex(), blob, msg=f"vazou em {label}")
+            self.assertNotIn(self.digits, blob, msg=f"vazou em {label}")
+            # tambem garante que nenhuma janela contigua de 20+ digitos 1-6
+            # (parte da sequencia bruta) aparece em lugar nenhum da saida.
+            self.assertIsNone(re.search(r"[1-6]{20,}", blob), msg=f"vazou em {label}")
 
     def test_mnemonic_full_string_appears_only_inside_alt_screen_block(self):
         # Checagem por PARES DE PALAVRAS CONSECUTIVAS do mnemonic, nao por

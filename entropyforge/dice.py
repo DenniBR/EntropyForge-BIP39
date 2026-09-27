@@ -93,6 +93,14 @@ def decode(data: bytes) -> str:
     if len(data) < 2:
         raise DiceInputError("dados curtos demais para conter o prefixo de comprimento (2 bytes)")
     n = int.from_bytes(data[:2], "big")
+    if n == 0:
+        # Simetria com `encode`/`validate_rolls`, que rejeitam explicitamente
+        # uma sequencia vazia: `decode` nao deve aceitar um prefixo n=0 que
+        # `encode` nunca produziria (achado de auditoria adversarial, Fase D
+        # -- sem impacto de seguranca real, ja que `decode` so e chamado
+        # internamente pelo round-trip do selftest e por testes, nunca sobre
+        # dados nao confiaveis no fluxo `generate`; corrigido por completude).
+        raise DiceInputError("prefixo de comprimento n=0: nenhuma sequencia valida tem zero lancamentos")
     max_value = 6**n - 1
     width = (max_value.bit_length() + 7) // 8 if max_value > 0 else 0
     if len(data) != 2 + width:

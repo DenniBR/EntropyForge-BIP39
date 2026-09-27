@@ -105,6 +105,17 @@ class DecodeNegativeTests(unittest.TestCase):
         with self.assertRaises(DiceInputError):
             decode(payload)
 
+    def test_rejects_zero_length_prefix(self):
+        # Achado de auditoria adversarial (Fase D, secao 6): `encode` rejeita
+        # explicitamente uma sequencia vazia (validate_rolls), entao um
+        # prefixo n=0 e um estado que `encode` NUNCA produz. `decode` deve
+        # rejeitar simetricamente, em vez de aceitar e devolver "". Sem
+        # impacto de seguranca real (decode so e chamado com dados internos
+        # conhecidos-bons, nunca com entrada nao confiavel no fluxo
+        # `generate`), mas e uma inconsistencia de validacao real.
+        with self.assertRaises(DiceInputError):
+            decode((0).to_bytes(2, "big"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -40,6 +40,26 @@ class VectorMnemonicToEntropyTests(unittest.TestCase):
         rc = cmd_vector(args, io)
         self.assertNotEqual(rc, 0)
 
+    def test_rejects_valid_words_with_wrong_checksum(self):
+        # Fase D (teste de falha induzida, secao 19): mnemonic com todas
+        # as 24 palavras validas (existem na wordlist) mas cujo checksum
+        # (ultimos 8 bits) nao corresponde a entropia dos 253 bits
+        # anteriores -- deve ser rejeitado com uma mensagem de erro clara
+        # e generica, nunca revelando qual palavra "deveria" estar la.
+        mnemonic = bip39.entropy_to_mnemonic(bytes(32))
+        words = mnemonic.split()
+        words[-1] = "zoo" if words[-1] != "zoo" else "abandon"
+        tampered = " ".join(words)
+        io, captured = _io()
+        args = build_parser().parse_args(["vector", "--mnemonic", tampered])
+        rc = cmd_vector(args, io)
+        self.assertNotEqual(rc, 0)
+        blob = "\n".join(captured)
+        self.assertIn("checksum", blob.lower())
+        # a mensagem de erro nao deve conter a entropia original nem
+        # revelar qual seria o checksum esperado.
+        self.assertNotIn(bytes(32).hex(), blob)
+
 
 class VectorCombineTests(unittest.TestCase):
     def test_a_digits_and_b_hex(self):
