@@ -1,6 +1,6 @@
 PYTHON ?= python3
 
-.PHONY: test selftest vectors build repro lint clean simulate release verify-release
+.PHONY: test selftest vectors build repro lint clean simulate release verify-release executable repro-exe
 
 ## Roda toda a suite de testes (unittest da stdlib; sem dependencias de terceiros).
 test:
@@ -74,7 +74,26 @@ verify-release:
 		--vectors tests/vectors/bip39_vectors.json \
 		--verbose
 
+## Constroi o executavel standalone (Fase F, Nuitka -- ver
+## docs/EXECUTABLE_BUILD.md). Requer 'nuitka' e um compilador C instalados
+## num ambiente de BUILD (nunca dependencias de runtime do produto).
+executable:
+	$(PYTHON) tools/build_executable.py
+
+## Constroi o executavel duas vezes (diretorios/umask diferentes) e
+## confirma que o SHA-256 de CADA arquivo e identico (Fase F, requisito
+## de build reprodutivel do executavel -- ver docs/EXECUTABLE_BUILD.md).
+repro-exe:
+	@rm -rf /tmp/entropyforge-exe-repro-a /tmp/entropyforge-exe-repro-b
+	@mkdir -p /tmp/entropyforge-exe-repro-a /tmp/entropyforge-exe-repro-b
+	@umask 022 && $(PYTHON) tools/build_executable.py --output-dir /tmp/entropyforge-exe-repro-a
+	@umask 077 && $(PYTHON) tools/build_executable.py --output-dir /tmp/entropyforge-exe-repro-b
+	@(cd /tmp/entropyforge-exe-repro-a/entropyforge-bip39-*/ && find . -type f -exec sha256sum {} \; | sort -k2) > /tmp/entropyforge-exe-repro-a.hashes
+	@(cd /tmp/entropyforge-exe-repro-b/entropyforge-bip39-*/ && find . -type f -exec sha256sum {} \; | sort -k2) > /tmp/entropyforge-exe-repro-b.hashes
+	@diff -q /tmp/entropyforge-exe-repro-a.hashes /tmp/entropyforge-exe-repro-b.hashes \
+	 && echo "REPRODUTIVEL: todos os hashes identicos" || (echo "DIVERGENTE: build do executavel nao reprodutivel" && exit 1)
+
 clean:
 	find . -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
-	rm -rf release
+	rm -rf release dist_executable
 	rm -f entropyforge.pyz SHA256SUMS MANIFEST.txt
