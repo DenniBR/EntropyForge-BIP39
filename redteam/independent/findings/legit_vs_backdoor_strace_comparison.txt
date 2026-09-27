@@ -1,0 +1,86 @@
+Fase D (Fase 45) -- observacao externa comparativa: LEGITIMO vs BACKDOOR
+(strace, nivel de syscall do kernel)
+============================================================================
+
+Tabela (touched_network / spawned_process / wrote_to_disk, via
+verifier.process_observe.trace_process, rodando `vector` com dados
+publicos de teste):
+
+caso                           touched_network  spawned_process  wrote_to_disk
+LEGITIMO (sem backdoor)        False            False            False
+BACKDOOR 02 (arquivo /tmp)     False            False            False
+BACKDOOR 03 (socket UDP)       False            False            False
+BACKDOOR 04 (subprocess)       False            False            False
+BACKDOOR 06 (pre-guard)        False            False            True
+controle: script SEM guard,
+tentando socket AF_INET real   True             --               --
+
+----------------------------------------------------------------------
+Achado central: backdoors BLOQUEADOS pelo guard sao INDISTINGUIVEIS do
+legitimo NO NIVEL DE SYSCALL -- e isso e o resultado CORRETO, nao uma
+falha da ferramenta.
+----------------------------------------------------------------------
+
+Os backdoors 02/03/04 tentam, respectivamente, escrever em /tmp, abrir um
+socket UDP, e chamar subprocess -- e `entropyforge.guard` bloqueia os
+tres, como ja demonstrado em `backdoor_lab_output.txt`. O que esta tabela
+acrescenta: quando observados por `strace` (uma camada que opera ABAIXO
+do interpretador Python, no nivel do kernel), esses TRES casos aparecem
+IDENTICOS ao caso legitimo -- nenhuma tentativa de socket, nenhum
+processo filho, nenhuma escrita em disco E VISIVEL NO TRACE.
+
+Isto NAO significa que `process_observe.py` falhou em detectar os
+backdoors. Significa o oposto: o audit hook do CPython
+(`sys.addaudithook`, usado por `guard.py`) intercepta a operacao ANTES
+que a syscall real seja emitida ao kernel -- `GuardViolation` e levantada
+em codigo Python puro, e a chamada `socket()`/`open()`/`subprocess.Popen()`
+NUNCA CHEGA a fazer a syscall correspondente. Ha, portanto, genuinamente
+NADA para o `strace` observar nesses tres casos -- nao e um limite da
+ferramenta, e a CONFIRMACAO, numa camada independente do proprio
+EntropyForge, de que o bloqueio e efetivo o suficiente para impedir a
+syscall de sequer ser tentada (nao so de "ter sucesso").
+
+O BACKDOOR 06 (pre-guard, roda antes de `guard.activate()` existir) e o
+UNICO que produz uma syscall real -- e `wrote_to_disk=True` confirma que
+`process_observe.py` a captura corretamente. O CONTROLE final (um script
+Python puro, SEM NENHUM guard, tentando um socket AF_INET real) confirma
+que a capacidade de deteccao positiva da ferramenta funciona: quando uma
+tentativa de rede realmente chega ao kernel, o trace mostra exatamente
+`socket(AF_INET, SOCK_DGRAM...)` seguido de `sendto(...)`.
+
+----------------------------------------------------------------------
+Conclusao pratica
+----------------------------------------------------------------------
+`process_observe.py` (observacao de syscall) e `entropyforge.guard`
+(audit hook em Python) sao camadas COMPLEMENTARES, nao redundantes:
+
+  - o guard.py bloqueia a operacao ANTES da syscall, prevenindo o dano;
+  - o strace so consegue OBSERVAR uma syscall que de fato aconteceu.
+
+Se o guard estiver funcionando (como confirmado em todos os testes desta
+auditoria), o strace nao teria nada de diferente para mostrar entre um
+backdoor bloqueado e o codigo legitimo -- e essa ausencia de diferenca E
+o resultado esperado, nao uma limitacao. O valor real de `process_observe.py`
+esta em dois cenarios que ELE cobre e o guard NAO: (a) confirmar de forma
+independente que o bloqueio realmente impede a syscall (nao so que uma
+excecao Python foi levantada, que teoricamente poderia ser suprimida por
+outro codigo), e (b) capturar qualquer coisa que rode ANTES do guard
+existir ou que o CONTORNE inteiramente (backdoor 06, e qualquer cenario
+hipotetico de guard removido/nao-ativado).
+
+----------------------------------------------------------------------
+Achado secundario, corrigido nesta fase: falso positivo de "touched_network"
+----------------------------------------------------------------------
+Durante a construcao desta comparacao, descobriu-se que `touched_network`
+era `True` ate para o caso LEGITIMO -- rastreado a uma tentativa de socket
+AF_UNIX (`connect` para `/var/run/nscd/socket`, falhando com ENOENT) feita
+pelo proprio mecanismo de execucao `python3 -m <pacote>` deste ambiente
+Linux/glibc, reproduzida de forma identica com um pacote Python
+COMPLETAMENTE VAZIO (sem nenhuma linha do EntropyForge). Corrigido em
+`verifier/process_observe.py`: sockets AF_UNIX (IPC local, nunca sai da
+maquina) agora sao contados separadamente em
+`local_unix_socket_syscalls`, nunca descartados silenciosamente, mas
+tambem nunca contados como "rede" -- so familias de enderecos com
+capacidade de rede real (AF_INET, AF_INET6, etc.) contam para
+`touched_network`. Teste de regressao:
+`tests/test_process_observe.py::BenignProcessTests::test_module_execution_af_unix_probe_is_not_counted_as_network`.

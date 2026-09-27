@@ -1,0 +1,53 @@
+=== Vetores de teste (n variados, casos extremos) ===
+[OK] n=1 (n=1): bytes_iguais=True roundtrip_real=True roundtrip_indep=True decode_cruzado=True
+[OK] n=2 (dois lancamentos) (n=2): bytes_iguais=True roundtrip_real=True roundtrip_indep=True decode_cruzado=True
+[OK] n=3 (n=3): bytes_iguais=True roundtrip_real=True roundtrip_indep=True decode_cruzado=True
+[OK] n=99 (all-1) (n=99): bytes_iguais=True roundtrip_real=True roundtrip_indep=True decode_cruzado=True
+[OK] n=100 (all-1, limiar teorico 256 bits) (n=100): bytes_iguais=True roundtrip_real=True roundtrip_indep=True decode_cruzado=True
+[OK] n=101 (n=101): bytes_iguais=True roundtrip_real=True roundtrip_indep=True decode_cruzado=True
+[OK] n=132 (n=132): bytes_iguais=True roundtrip_real=True roundtrip_indep=True decode_cruzado=True
+[OK] n=99 (all-6) (n=99): bytes_iguais=True roundtrip_real=True roundtrip_indep=True decode_cruzado=True
+[OK] n=127 (all-6, operacional) (n=127): bytes_iguais=True roundtrip_real=True roundtrip_indep=True decode_cruzado=True
+[OK] n=132 (alternancia ciclica) (n=132): bytes_iguais=True roundtrip_real=True roundtrip_indep=True decode_cruzado=True
+[OK] n=127 (aleatorio) (n=127): bytes_iguais=True roundtrip_real=True roundtrip_indep=True decode_cruzado=True
+[OK] n=1000 (grande) (n=1000): bytes_iguais=True roundtrip_real=True roundtrip_indep=True decode_cruzado=True
+[OK] n=1000 (bordas 1...1, meio 6) (n=1000): bytes_iguais=True roundtrip_real=True roundtrip_indep=True decode_cruzado=True
+[OK] n=50 (all-2, digito nao-extremo) (n=50): bytes_iguais=True roundtrip_real=True roundtrip_indep=True decode_cruzado=True
+
+=== Vetores publicos (para reproducao por terceiros) ===
+n=1                                           n=    1  A(hex)=000100
+n=2 (dois lancamentos)                        n=    2  A(hex)=000200
+n=3                                           n=    3  A(hex)=000300
+n=99 (all-1)                                  n=   99  A(hex)=00630000000000000000000000000000000000000000000000000000000000000000
+n=100 (all-1, limiar teorico 256 bits)        n=  100  A(hex)=0064000000000000000000000000000000000000000000000000000000000000000000
+n=101                                         n=  101  A(hex)=0065000000000000000000000000000000000000000000000000000000000000000000
+n=132                                         n=  132  A(hex)=008400000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+n=99 (all-6)                                  n=   99  A(hex)=0063f0bb8a1bbde9163b9e053e8f918bf8e4d34034d7ffffffffffffffffffffffff
+n=127 (all-6, operacional)                    n=  127  A(hex)=007f01390c266d79b9b787d2a60ec294d494a5e6156058c041c114557fffffffffffffffffffffffffffffff
+n=132 (alternancia ciclica)                   n=  132  A(hex)=0084017c1babea8000d42ba14a137e1e31ecf791efa12ad2cec19d01ef29c8bebb2a1d06d4d814d9d65a5f4f89
+n=127 (aleatorio)                             n=  127  A(hex)=007f00512a19bd1a6e100043018c61cc619fd070e820905b1d44d5a7e1d50d1aca41509596a150f34dcfbb97
+n=1000 (grande)                               n= 1000  A(hex)=03e801c2c71f7c27eac6d7261027752785d8f496b9d5cd30e7da36f5b29a3dfef71e9f8d17d3c108ef6130d6823ab7404f0706b7ec6895087368785e7b7b9ce79ebeaaa911c13c9f80a71d88836dcb8f9509d33d3d55e9e20ebe4baad46018750f343cc533b9520bd33c5636fd00ee8ca519dd1d1337fc0bea1c8781663366bfa62c00e0f8a8c6c0bf941682e508b7ec01850c667743c0de0b577fb478586de8ffccd4447cd9b5a4858c63433f184795abd588a05839f0b7b0f1fdbe79de6a58677744fd3a438e5aeb6aa1b06bdf6326237e8328034038a1c14bd1ae8fd43efc36bf87a58de70e960a9fad4a7f37e7b16cd0311be0ed184cfb7263327650e3e6aaedfa7dfec95e8460045bbed3ac7f9e01e0467178c1bc9751607b8cfef796192b14787064f921106028f1368a2ed6aa5125b73ce1811c35c3096f795e2e4732a8b075b3f37d
+n=1000 (bordas 1...1, meio 6)                 n= 1000  A(hex)=03e8005324d5833891974060204df16e67743f4d96fbb25041e8946531b00cb3664b5377f383db5761d753ca175a04b08db2a4eae0cf897d1cbb73d8b437b702a42d66e0b124585714de15e42a208ddec9309ab7449c22a5ad25476d1106736423b21f45f6e99ae73209348b8cb07a6d3472f9374f2c7335659208eb0cd9e5705f580169c29da0e0109cfa50060c734fd592fd1c3208c42d39f7348c176b4881ae46567c4ae9c269c9225664a31ab6d33189a4b5d2015e15d97618acb9294114f50e591894a34964857ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa
+n=50 (all-2, digito nao-extremo)              n=   50  A(hex)=003200799ddcc0af5973b18307333333333333
+
+=== Busca por colisao: sequencias distintas do MESMO n devem sempre
+produzir bytes DIFERENTES (bijecao) ===
+  n=1: 6 sequencias enumeradas EXAUSTIVAMENTE, 6 valores unicos de A (OK, bijecao confirmada)
+  n=2: 36 sequencias enumeradas EXAUSTIVAMENTE, 36 valores unicos de A (OK, bijecao confirmada)
+  n=3: 216 sequencias enumeradas EXAUSTIVAMENTE, 216 valores unicos de A (OK, bijecao confirmada)
+  n=4: 1296 sequencias enumeradas EXAUSTIVAMENTE, 1296 valores unicos de A (OK, bijecao confirmada)
+  n=5: 7776 sequencias enumeradas EXAUSTIVAMENTE, 7776 valores unicos de A (OK, bijecao confirmada)
+
+=== Ataque: truncamento/overflow/underflow/comprimento inconsistente (decode) ===
+  [OK, rejeitado corretamente] A truncado (1 byte a menos): comprimento de A (40 bytes) inconsistente com o prefixo n=120 (esperado 41 bytes)
+  [OK, rejeitado corretamente] A com 1 byte extra (overflow): comprimento de A (42 bytes) inconsistente com o prefixo n=120 (esperado 41 bytes)
+  [OK, rejeitado corretamente] prefixo n=0 (zero lancamentos, dado vazio): prefixo de comprimento n=0: nenhuma sequencia valida tem zero lancamentos
+  [OK, rejeitado corretamente] valor codificado > 6^n-1 para n=3 (216 > 215): valor codificado fora do intervalo [0, 6**n) esperado para n
+  encode('111') = 000300  encode('11') = 000200
+  [OK, sem colisao entre 'leading zeros' de tamanhos diferentes] True
+  [OK] prefixo de n=300 em hex = 012c -- confirma BIG-endian (little-endian daria 11265, ERRADO)
+
+=== RESULTADO FINAL ===
+Todos os vetores comparados byte-a-byte contra reimplementacao independente: OK
+Todas as bijecoes exaustivas (n=1..5): OK
+Todos os ataques de truncamento/overflow/underflow/endian rejeitados corretamente: OK

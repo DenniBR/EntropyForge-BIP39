@@ -1,0 +1,89 @@
+=== Ataque de independencia: digitos de sqrt(2) em base 6 ===
+
+n=  127 offset=       0: overall=WARN  contagens=(14, 13, 32, 24, 23, 21)
+    ~~ face_frequency           p=0.0397 veredito=WARN
+       serial_difference        p=0.6926 veredito=PASS
+       repeats                  p=0.2814 veredito=PASS
+       runs                     p=0.2105 veredito=PASS
+       autocorrelation_lag1     p=0.1942 veredito=PASS
+       autocorrelation_lag2     p=0.6510 veredito=PASS
+       autocorrelation_lag3     p=0.4234 veredito=PASS
+n=  600 offset=       0: overall=PASS  contagens=(89, 90, 102, 101, 112, 106)
+       face_frequency           p=0.5408 veredito=PASS
+       serial_difference        p=0.1529 veredito=PASS
+       repeats                  p=0.3236 veredito=PASS
+       runs                     p=0.4357 veredito=PASS
+       autocorrelation_lag1     p=0.6871 veredito=PASS
+       autocorrelation_lag2     p=0.0834 veredito=PASS
+       autocorrelation_lag3     p=0.6209 veredito=PASS
+n= 3000 offset=       0: overall=PASS  contagens=(500, 507, 485, 500, 530, 478)
+       face_frequency           p=0.6514 veredito=PASS
+       serial_difference        p=0.2974 veredito=PASS
+       repeats                  p=0.8065 veredito=PASS
+       runs                     p=0.3331 veredito=PASS
+       autocorrelation_lag1     p=0.0883 veredito=PASS
+       autocorrelation_lag2     p=0.4505 veredito=PASS
+       autocorrelation_lag3     p=0.6285 veredito=PASS
+
+n=  127 offset=   10000: overall=PASS  contagens=(25, 25, 21, 24, 15, 17)
+       face_frequency           p=0.4953 veredito=PASS
+       serial_difference        p=0.7801 veredito=PASS
+       repeats                  p=0.2814 veredito=PASS
+       runs                     p=0.3666 veredito=PASS
+       autocorrelation_lag1     p=0.5825 veredito=PASS
+       autocorrelation_lag2     p=0.5447 veredito=PASS
+       autocorrelation_lag3     p=0.9020 veredito=PASS
+n=  600 offset=   10000: overall=FAIL  contagens=(105, 124, 106, 107, 72, 86)
+    ** face_frequency           p=0.0052 veredito=FAIL
+       serial_difference        p=0.5415 veredito=PASS
+       repeats                  p=0.5834 veredito=PASS
+       runs                     p=0.6490 veredito=PASS
+       autocorrelation_lag1     p=0.1623 veredito=PASS
+       autocorrelation_lag2     p=0.5099 veredito=PASS
+       autocorrelation_lag3     p=0.9357 veredito=PASS
+n= 3000 offset=   10000: overall=WARN  contagens=(473, 500, 502, 540, 499, 486)
+       face_frequency           p=0.4086 veredito=PASS
+       serial_difference        p=0.0501 veredito=PASS
+    ~~ repeats                  p=0.0351 veredito=WARN
+       runs                     p=0.2979 veredito=PASS
+       autocorrelation_lag1     p=0.1999 veredito=PASS
+       autocorrelation_lag2     p=0.1552 veredito=PASS
+       autocorrelation_lag3     p=0.5999 veredito=PASS
+
+n=  127 offset=   50000: overall=WARN  contagens=(17, 28, 19, 23, 18, 22)
+       face_frequency           p=0.5620 veredito=PASS
+       serial_difference        p=0.6780 veredito=PASS
+       repeats                  p=0.1874 veredito=PASS
+       runs                     p=1.0000 veredito=PASS
+       autocorrelation_lag1     p=0.6913 veredito=PASS
+       autocorrelation_lag2     p=0.9572 veredito=PASS
+    ~~ autocorrelation_lag3     p=0.0193 veredito=WARN
+n=  600 offset=   50000: overall=PASS  contagens=(96, 116, 93, 98, 104, 93)
+       face_frequency           p=0.5639 veredito=PASS
+       serial_difference        p=0.1012 veredito=PASS
+       repeats                  p=0.2978 veredito=PASS
+       runs                     p=0.9349 veredito=PASS
+       autocorrelation_lag1     p=0.8858 veredito=PASS
+       autocorrelation_lag2     p=0.3061 veredito=PASS
+       autocorrelation_lag3     p=0.2722 veredito=PASS
+n= 3000 offset=   50000: overall=WARN  contagens=(503, 546, 475, 494, 500, 482)
+       face_frequency           p=0.2854 veredito=PASS
+       serial_difference        p=0.2446 veredito=PASS
+       repeats                  p=0.3647 veredito=PASS
+       runs                     p=0.4008 veredito=PASS
+       autocorrelation_lag1     p=0.6132 veredito=PASS
+    ~~ autocorrelation_lag2     p=0.0307 veredito=WARN
+       autocorrelation_lag3     p=0.2347 veredito=PASS
+
+=== Controle: mesmo teste em sequencias i.i.d. honestas (para comparar taxa) ===
+honesto i.i.d. (n=127, 200 tentativas): FAIL=7 WARN=45 PASS=148
+
+=== Interpretacao ===
+Se sqrt(2) em base 6 passar (PASS/WARN) na mesma taxa que sequencias
+honestas i.i.d., isso confirma que a bateria estatistica NAO CONSEGUE
+distinguir uma fonte com ZERO entropia real (qualquer um que saiba a
+formula e o offset pode prever a sequencia exata) de uma fonte
+genuinamente aleatoria -- o mesmo limite estrutural ja documentado
+(stats.py, docstring) e confirmado empiricamente para K (PRNG com
+seed conhecida, secao 3), agora tambem para uma CONSTANTE MATEMATICA
+PUBLICA, sem nenhum software de geracao de numeros envolvido.

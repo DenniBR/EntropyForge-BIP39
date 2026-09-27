@@ -1,0 +1,52 @@
+=== (1) Bissecao: limiar de p_bias onde FAIL cruza 50% (n=127) ===
+  passo 0: p_bias=0.33333 -> FAIL rate ~= 0.933
+  passo 1: p_bias=0.25000 -> FAIL rate ~= 0.267
+  passo 2: p_bias=0.29167 -> FAIL rate ~= 0.593
+  passo 3: p_bias=0.27083 -> FAIL rate ~= 0.447
+  passo 4: p_bias=0.28125 -> FAIL rate ~= 0.540
+  passo 5: p_bias=0.27604 -> FAIL rate ~= 0.493
+  passo 6: p_bias=0.27865 -> FAIL rate ~= 0.533
+  passo 7: p_bias=0.27734 -> FAIL rate ~= 0.520
+  passo 8: p_bias=0.27669 -> FAIL rate ~= 0.513
+  passo 9: p_bias=0.27637 -> FAIL rate ~= 0.513
+  passo 10: p_bias=0.27620 -> FAIL rate ~= 0.500
+  passo 11: p_bias=0.27612 -> FAIL rate ~= 0.493
+
+Limiar encontrado: p_bias ~= 0.2762
+  H_min/lancamento nesse limiar    = 1.8564 bits (vs 2.585 honesto)
+  H_Shannon/lancamento nesse limiar = 2.5309 bits
+  H_min total em n=127             = 235.76 bits (vs 256 requeridos)
+
+=== (2) Hill climbing direto sobre a sequencia (minimiza H_min empirica) ===
+  reinicio 0: H_min inicial=2.4037 -> final=1.7792 (aceitas=13, rej.bateria=2987)
+  reinicio 1: H_min inicial=2.3448 -> final=1.7792 (aceitas=12, rej.bateria=2988)
+  reinicio 2: H_min inicial=2.0818 -> final=1.9012 (aceitas=4, rej.bateria=2996)
+  reinicio 3: H_min inicial=2.3448 -> final=1.7792 (aceitas=12, rej.bateria=2988)
+  reinicio 4: H_min inicial=2.1813 -> final=1.8188 (aceitas=8, rej.bateria=2992)
+  reinicio 5: H_min inicial=2.2882 -> final=1.8188 (aceitas=10, rej.bateria=2990)
+  reinicio 6: H_min inicial=2.2882 -> final=1.8188 (aceitas=10, rej.bateria=2990)
+  reinicio 7: H_min inicial=2.2882 -> final=1.8188 (aceitas=10, rej.bateria=2990)
+  reinicio 8: H_min inicial=1.9012 -> final=1.8188 (aceitas=2, rej.bateria=2998)
+  reinicio 9: H_min inicial=2.2338 -> final=1.7792 (aceitas=10, rej.bateria=2990)
+  reinicio 10: H_min inicial=2.2882 -> final=1.7792 (aceitas=11, rej.bateria=2989)
+  reinicio 11: H_min inicial=2.1813 -> final=1.8594 (aceitas=7, rej.bateria=2993)
+  reinicio 12: H_min inicial=2.1307 -> final=1.8594 (aceitas=6, rej.bateria=2994)
+  reinicio 13: H_min inicial=2.2338 -> final=1.8188 (aceitas=9, rej.bateria=2991)
+  reinicio 14: H_min inicial=2.1307 -> final=1.8594 (aceitas=6, rej.bateria=2994)
+
+Melhor de 15 reinicios: H_min = 1.7792 bits/lancamento (vs 2.585 honesto)
+  contagens de face: [16, 18, 20, 17, 37, 19]
+  veredito final: WARN
+  H_min total em n=127 = 225.96 bits (alvo: 256 bits)
+  sequencia (primeiros 60 digitos): 512252512115445116524662342543423531116233565625132543556514...
+
+Interpretacao: o hill climbing local (mutacao=1 digito por vez) fica
+PRESO num otimo local rapidamente, porque QUALQUER excesso visivel de
+uma face aciona T1 (chi-quadrado) muito antes de a min-entropia cair
+de forma significativa -- ao contrario do modelo K (PRNG de seed
+conhecida) da secao 3, que tem H_min real = 0 (o atacante sabe a
+sequencia exata) mas e ACEITO quase sempre, porque ele nao e i.i.d.
+enviesado, e sim ESTRUTURALMENTE indistinguivel de uniforme para
+qualquer teste estatistico -- a bateria nao pode, por construcao,
+distinguir 'aleatorio de verdade' de 'PRNG bom com seed secreta do
+atacante'. O ataque real e por ai, nao por vies i.i.d. disfarcado.

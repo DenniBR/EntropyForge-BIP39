@@ -1,0 +1,22 @@
+=== RESULTADOS (True/hit = codigo externo executou) ===
+shadow os.py                                            | pyz -I -B (uso real)                       | False
+shadow os.py                                            | source -B -m entropyforge, SEM -I (dev)    | False
+shadow getpass.py                                       | pyz -I -B (uso real)                       | False
+shadow getpass.py                                       | source -B -m entropyforge, SEM -I (dev)    | True
+shadow argparse.py                                      | pyz -I -B (uso real)                       | False
+shadow argparse.py                                      | source -B -m entropyforge, SEM -I (dev)    | True
+shadow hashlib.py                                       | pyz -I -B (uso real)                       | False
+shadow hashlib.py                                       | source -B -m entropyforge, SEM -I (dev)    | True
+.pth malicioso (user-site)                              | pyz -I -B (uso real)                       | False
+.pth malicioso (user-site)                              | source -B -m entropyforge, SEM -I (dev)    | True
+sitecustomize+usercustomize (user-site)                 | pyz -I -B (uso real)                       | False
+sitecustomize+usercustomize (user-site)                 | source -B -m entropyforge, SEM -I (dev)    | True
+sitecustomize.py no cwd                                 | pyz -I -B (uso real)                       | False
+sitecustomize.py no cwd                                 | source -B -m entropyforge, SEM -I (dev)    | False
+PYTHONHOME bogus                                        | pyz -I -B (uso real)                       | crashou_ou_falhou=False
+PYTHONHOME bogus                                        | source -B -m entropyforge, SEM -I (dev)    | crashou_ou_falhou=True
+PYTHONSTARTUP (so afeta REPL, esperado NAO ativar)      | pyz -I -B (uso real)                       | False
+PYTHONSTARTUP (so afeta REPL, esperado NAO ativar)      | source -B -m entropyforge, SEM -I (dev)    | False
+
+Vetores que afetaram o .pyz (-I -B):    0 -> []
+Vetores que afetaram o source (sem -I): 5 -> ['shadow getpass.py', 'shadow argparse.py', 'shadow hashlib.py', '.pth malicioso (user-site)', 'sitecustomize+usercustomize (user-site)']

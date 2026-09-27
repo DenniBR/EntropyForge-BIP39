@@ -1,0 +1,54 @@
+=== 1. Entropia de Shannon de um d6 honesto ===
+H(d6) = -sum p*log2(p) sobre 6 faces uniformes = 2.584962500721156
+log2(6) direto                                  = 2.584962500721156
+Confirmado: H(d6 uniforme) == log2(6) (a uniforme MAXIMIZA a entropia
+de Shannon sobre um alfabeto de 6 simbolos -- desigualdade de Gibbs).
+
+=== 2. n minimo para X bits teoricos (d6 honesto e i.i.d.) ===
+target=128: n = ceil(128/log2(6)) = 50, bits em n = 129.248125
+target=256: n = ceil(256/log2(6)) = 100, bits em n = 258.496250
+Confirmado: 100 lancamentos para 256 bits teoricos, 50 para 128.
+
+=== 3. Min-entropia H_inf(n) = -n*log2(p_max) ===
+p_max=0.2: -log2(p_max) = 2.321928 bits/lancamento
+n para 256 bits de min-entropia (sem descontar vazamento) = 111
+
+=== 4. Vazamento do relatorio publico (regra da cadeia DORS 2004) ===
+n=100: L(n) = log2(C(n+5,5)) + 6*log2(3) = 36.0347 bits
+n=127: L(n) = log2(C(n+5,5)) + 6*log2(3) = 37.7143 bits
+n=600: L(n) = log2(C(n+5,5)) + 6*log2(3) = 48.7829 bits
+
+=== 5. n operacional recomendado (generate) ===
+n_operacional = 127
+  H_inf(127, 0.20) = 294.8849 bits
+  L(127)           = 37.7143 bits
+  residual            = 257.1706 bits (deve ser >= 256)
+  checagem de minimalidade: n-1=126 da residual 254.9044 bits (deve ser < 256)
+
+=== 6. BIP-39: relacao ENT / CS / MS para todos os tamanhos validos ===
+ENT=128 bits -> CS=4 bits -> MS=(ENT+CS)/11=12 palavras
+ENT=160 bits -> CS=5 bits -> MS=(ENT+CS)/11=15 palavras
+ENT=192 bits -> CS=6 bits -> MS=(ENT+CS)/11=18 palavras
+ENT=224 bits -> CS=7 bits -> MS=(ENT+CS)/11=21 palavras
+ENT=256 bits -> CS=8 bits -> MS=(ENT+CS)/11=24 palavras
+Confirmado: ENT=256 -> CS=8 bits -> MS=24 palavras.
+
+=== 7. Deteccao de adulteracao pelo checksum (CS=8 bits) ===
+P(adulteracao aleatoria de E ainda produz checksum valido) = 2^-8 = 0.00390625
+P(deteccao) = 1 - 2^-8 = 0.99609375
+NOTA: isto vale para uma alteracao ALEATORIA e uniforme do valor de E/bits.
+Uma alteracao ESTRUTURADA (trocar 1 palavra por outra do dicionario,
+mudando 11 bits especificos) tem a MESMA probabilidade de escape --
+ver verificacao empirica abaixo (secao 7b).
+
+=== 7b. Verificacao empirica (independente, 5000 tentativas) ===
+trocas de 1 palavra que ESCAPARAM do checksum: 19/5000 = 0.003800
+esperado teorico (2^-8)                        = 0.003906
+
+=== 8. Recalculo independente de E[K log2 K], K ~ Poisson(1) ===
+E[K log2 K] (K~Poisson(1)) somado ate convergencia = 0.827245 bits
+valor citado em docs/MATH.md (Flajolet-Odlyzko)     = 0.8272 bits
+H(Y) para N=2^256 = log2(N) - E[K log2 K] = 255.1728 bits (docs/MATH.md cita 255.17)
+
+=== FIM: todas as afirmacoes numericas de docs/MATH.md/entropy_calc.py
+reproduzidas de forma INDEPENDENTE (nenhum import de entropyforge/).

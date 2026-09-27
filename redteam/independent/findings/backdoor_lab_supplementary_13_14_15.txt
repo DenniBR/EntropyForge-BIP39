@@ -1,0 +1,93 @@
+Fase D (Fase 44) -- testes direcionados dos backdoors 12-15 (canais de
+exfiltracao novos: stdout, mensagem de excecao, modulo secundario
+pos-guard, handler de sinal)
+
+Os backdoors 13 (excecao) e 15 (sinal) sao condicionais/dependem de um
+gatilho que `run_backdoor_lab.py` (que so roda `selftest` e `vector`) nao
+exercita por padrao -- por isso testados aqui separadamente, com o
+gatilho ativado de proposito.
+
+----------------------------------------------------------------------
+Backdoor 12 -- Exfiltracao via STDOUT (nao stderr)
+----------------------------------------------------------------------
+Confirmado no sweep padrao: `selftest` continua PASSOU, marcador visto
+em stdout. MESMO ACHADO REAL desta fase: este exato canal (stdout, nao
+stderr) escapava de `tests/test_cli_generate.py::test_no_secret_hex_leaks_anywhere`
+-- o teste so inspecionava a `TerminalIO` falsa, nunca o stdout/stderr
+REAIS do processo. CORRIGIDO nesta mesma fase (`_run_capturing_real_stdio`
+em tests/test_cli_generate.py); reproduzido e confirmado que o teste
+corrigido agora FALHA corretamente contra este backdoor.
+
+----------------------------------------------------------------------
+Backdoor 13 -- Exfiltracao via MENSAGEM DE EXCECAO, gatilho por env var
+----------------------------------------------------------------------
+Com `ENTROPYFORGE_LAB_TRIGGER_13=1`:
+
+    RuntimeError: INDEPENDENT_VERIFIER_LAB_BACKDOOR_13:7543805559dc876b...
+
+A excecao NAO e capturada por `cmd_vector` (que so trata
+`bip39.Bip39Error, dice.DiceInputError, ValueError`), entao propaga ate o
+handler padrao do Python, que imprime o traceback COMPLETO -- incluindo a
+mensagem com o segredo -- em stderr.
+
+Sem a variavel de ambiente, o backdoor e completamente silencioso (mesma
+classe dos backdoors 07/08/09: condicional a um estado externo, invisivel
+a qualquer teste de comportamento que nao exercite exatamente esse
+estado). NENHUM "guard" pode prevenir isto de forma geral -- levantar
+excecoes e um mecanismo basico da linguagem, e uma politica de "nunca
+capturar excecao nenhuma" tornaria o programa infeliz de depurar e nao
+impediria um atacante disposto a escrever `raise RuntimeError(segredo)`
+de qualquer forma. A UNICA defesa real e revisao de codigo do arquivo
+critico (`combine.py` -- ja o primeiro item na ordem de leitura
+recomendada de docs/AUDIT.md) ou comparacao com uma copia de confianca
+(hashing/pyz_inspect do independent-verifier).
+
+----------------------------------------------------------------------
+Backdoor 14 -- Modulo secundario POS-guard (report.py)
+----------------------------------------------------------------------
+Ao contrario do backdoor 06 (pre-guard, em __init__.py), este roda DEPOIS
+de `guard.activate()`. Resultado, com o guard ativo:
+
+    INDEPENDENT_VERIFIER_LAB_BACKDOOR_14_BLOCKED:GuardViolation(
+        "... evento de auditoria 'socket.__new__' ...")
+
+CONFIRMA que a protecao do guard.py e GLOBAL ao processo -- bloqueia uma
+tentativa de rede partindo de QUALQUER modulo do pacote (aqui, report.py,
+um modulo de formatacao de relatorio, nao o caminho critico de
+combinacao), nao apenas de combine.py. Reforca o achado do Cenario F da
+matriz de supply chain (Fase 13): um revisor que so olhasse os arquivos
+"obviamente criticos" deixaria passar o CODIGO-FONTE deste backdoor, mas
+o comportamento em tempo de execucao ainda seria bloqueado pelo guard,
+independentemente de qual modulo o originou.
+
+----------------------------------------------------------------------
+Backdoor 15 -- Exfiltracao via handler de SIGTERM/SIGINT
+----------------------------------------------------------------------
+Um SIGTERM real enviado ao processo (simulando Ctrl-C durante `generate`)
+apos `combine()` ja ter rodado:
+
+    INDEPENDENT_VERIFIER_LAB_BACKDOOR_15_SIGNAL:610b913732587ac7e5a5d4a...
+    returncode: 1
+
+O handler malicioso executa e escreve o segredo em stderr ANTES do
+processo terminar. Nem `guard.py` (registrar um handler de sinal nao e
+uma operacao bloqueada) nem `tests/test_generate_interruption_safety.py`
+(que testa o comportamento de interrupcao do FLUXO LEGITIMO, nao a
+presenca de um handler malicioso registrado por codigo backdoored)
+detectam isto. Esta e uma FORMA NOVA e realista do mesmo limite ja
+documentado: sinais do sistema operacional (Ctrl-C sendo o caso de uso
+mais comum) sao um canal de execucao de codigo que nenhuma auditoria de
+comportamento de caixa-preta cobre -- so revisao de codigo-fonte.
+
+----------------------------------------------------------------------
+Conclusao geral desta fase
+----------------------------------------------------------------------
+Nenhum destes 4 backdoors novos (12-15) e "corrigivel" no sentido de uma
+mudanca de codigo em entropyforge/ -- 12 ja resultou em uma correcao real
+(o TESTE que deveria pegá-lo, corrigido); 13, 14 e 15 confirmam, com
+mecanismos de gatilho DIFERENTES entre si (excecao nao capturada, modulo
+nao-critico, sinal do SO), a mesma conclusao estrutural ja estabelecida
+na Fase 6-7: nenhum teste de comportamento de caixa-preta pode provar
+ausencia de um backdoor condicional ou de um canal de execucao fora do
+fluxo principal — apenas revisao de codigo-fonte e comparacao
+independente contra uma copia de confianca.

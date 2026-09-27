@@ -70,6 +70,41 @@
   marcador visto em 'vector' mas NAO em selftest (condicional)? False
   selftest stderr (ultimas linhas): '[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU\nINDEPENDENT_VERIFIER_LAB_BACKDOOR_10_ATEXIT:4e509a8f6dd7dd5f1800027ee1f6c82837f636754ac8369bb734ef79c5ea9090'
 
+=== BACKDOOR 11: Socket ofuscado (nomes construidos em runtime) ===
+  descricao: mesmo ataque do 03, mas sem a string literal 'socket' aparecer no source -- testa o limite de static_scan.py contra ofuscacao
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? True
+  marcador visto em 'vector' mas NAO em selftest (condicional)? False
+  selftest stderr (ultimas linhas): '[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU\nINDEPENDENT_VERIFIER_LAB_BACKDOOR_11_BLOCKED:GuardViolation("operacao bloqueada pela politica de seguranca: evento de auditoria \'socket.__new__\'. Este programa nunca acessa rede, processos externos ou bibliotecas nativas carregadas dinamicamente (requisito 13).")'
+
+=== BACKDOOR 12: Exfiltracao via stdout ===
+  descricao: gera o resultado correto; escreve a entropia combinada em stdout (canal diferente do 01/stderr)
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? True
+  marcador visto em 'vector' mas NAO em selftest (condicional)? False
+  selftest stderr (ultimas linhas): '[OK  ] specialfunc_tabulated_values\n[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU'
+
+=== BACKDOOR 13: Exfiltracao via mensagem de excecao ===
+  descricao: levanta uma excecao cuja mensagem contem a entropia, condicional a uma variavel de ambiente de laboratorio
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? False
+  marcador visto em 'vector' mas NAO em selftest (condicional)? False
+  selftest stderr (ultimas linhas): '[OK  ] specialfunc_tabulated_values\n[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU'
+
+=== BACKDOOR 14: Modulo secundario pos-guard (report.py) ===
+  descricao: backdoor em um modulo 'irrelevante' que roda DEPOIS de guard.activate() (ao contrario do 06) -- testa se o guard bloqueia tentativas de rede partindo de qualquer modulo, nao so combine.py
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? False
+  marcador visto em 'vector' mas NAO em selftest (condicional)? False
+  selftest stderr (ultimas linhas): '[OK  ] specialfunc_tabulated_values\n[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU'
+
+=== BACKDOOR 15: Exfiltracao via handler de sinal ===
+  descricao: registra um handler de SIGTERM/SIGINT que exfiltra a entropia ao processo ser interrompido (ex.: Ctrl-C durante generate)
+  selftest ainda reporta PASSOU? True
+  marcador do backdoor visto DURANTE selftest? False
+  marcador visto em 'vector' mas NAO em selftest (condicional)? False
+  selftest stderr (ultimas linhas): '[OK  ] specialfunc_tabulated_values\n[OK  ] osrng_reachable\nRESULTADO GERAL: PASSOU'
+
 === RESUMO ===
 ID   selftest PASSOU?   marcador em selftest   condicional detectado  arquivo criado? 
 01   True               True                   False                  False           
@@ -82,5 +117,10 @@ ID   selftest PASSOU?   marcador em selftest   condicional detectado  arquivo cr
 08   True               False                  True                   False           
 09   True               True                   False                  False           
 10   True               True                   False                  False           
+11   True               True                   False                  False           
+12   True               True                   False                  False           
+13   True               False                  False                  False           
+14   True               False                  False                  False           
+15   True               False                  False                  False           
 
-10/10 backdoors deixam `selftest` continuar reportando RESULTADO GERAL: PASSOU.
+15/15 backdoors deixam `selftest` continuar reportando RESULTADO GERAL: PASSOU.

