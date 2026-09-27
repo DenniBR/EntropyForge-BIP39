@@ -1,0 +1,60 @@
+
+==============================================================================
+RESULTADO 1: comparacao de hash do diretorio do executavel
+==============================================================================
+hash(A limpo)              = ec661ae96fe21cde488336ada5fdaf82bf538724cfd619b8b11482469669db1f
+hash(B alteracao cosmetica) = 709d7b3d8fed992400ee0e5f55625cd7d5844c9e808a5a7a3dc87ece7e7911cf  (== A? False)
+hash(C backdoor)            = 557293b87cce1fc0209e68586dfbba78896723d073d208190fbdbd958858f850  (== A? False)
+
+==============================================================================
+RESULTADO 2: comportamento operacional de cada executavel
+==============================================================================
+
+A (limpo):
+  selftest -> PASSOU? True  marcador de vazamento visto? False
+  vector   -> rc=0?   True  marcador de vazamento visto? False
+
+B (cosmetico):
+  selftest -> PASSOU? True  marcador de vazamento visto? False
+  vector   -> rc=0?   True  marcador de vazamento visto? False
+
+C (backdoor):
+  selftest -> PASSOU? True  marcador de vazamento visto? True
+  vector   -> rc=0?   True  marcador de vazamento visto? True
+  linha vazada (dado de TESTE, nunca real): 'INDEPENDENT_VERIFIER_LAB_BACKDOOR_01:f1f2bb7db31480abd918cd0b994c1d1c0dca71d2547c8dd62a5e9ac7caa10b64'
+
+==============================================================================
+RESULTADO 3: auto-verificacao (manifesto gerado a partir da MESMA
+copia de source usada para construir) -- deve PASSAR mesmo para o
+backdoor, porque nada aqui e independente (documentado desde a Fase E)
+==============================================================================
+A (limpo): manifesto autoconsistente com o proprio dist? True
+B (cosmetico): manifesto autoconsistente com o proprio dist? True
+C (backdoor): manifesto autoconsistente com o proprio dist? True
+
+==============================================================================
+RESULTADO 4: AUDITOR DE VERDADE -- reconstroi a partir da SUA PROPRIA
+copia (entropyforge/ real e revisado do repositorio), NAO da copia do
+atacante. Isto e' o que independent-verifier/verify_executable.py faz.
+==============================================================================
+
+A (limpo): verify_executable.py (com --entropyforge-root = copia REAL do auditor)
+  [PASS] executavel.hash_vs_manifesto: bate com o manifesto
+  [PASS] executavel.version: bate com o manifesto
+  [PASS] executavel.selftest: PASSOU
+  [PASS] executavel.reconstrucao_a_partir_do_source: reconstruido a partir do source bate exatamente com o manifesto
+  >>> deteccao correta (esperado PASS apenas para A)? True
+
+B (cosmetico): verify_executable.py (com --entropyforge-root = copia REAL do auditor)
+  [PASS] executavel.hash_vs_manifesto: bate com o manifesto
+  [PASS] executavel.version: bate com o manifesto
+  [PASS] executavel.selftest: PASSOU
+  [FAIL] executavel.reconstrucao_a_partir_do_source: manifesto=709d7b3d8fed992400ee0e5f55625cd7d5844c9e808a5a7a3dc87ece7e7911cf reconstruido=ec661ae96fe21cde488336ada5fdaf82bf538724cfd619b8b11482469669db1f
+  >>> deteccao correta (esperado PASS apenas para A)? True
+
+C (backdoor): verify_executable.py (com --entropyforge-root = copia REAL do auditor)
+  [PASS] executavel.hash_vs_manifesto: bate com o manifesto
+  [PASS] executavel.version: bate com o manifesto
+  [PASS] executavel.selftest: PASSOU
+  [FAIL] executavel.reconstrucao_a_partir_do_source: manifesto=557293b87cce1fc0209e68586dfbba78896723d073d208190fbdbd958858f850 reconstruido=ec661ae96fe21cde488336ada5fdaf82bf538724cfd619b8b11482469669db1f
+  >>> deteccao correta (esperado PASS apenas para A)? True

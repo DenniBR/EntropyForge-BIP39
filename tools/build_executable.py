@@ -84,9 +84,21 @@ def _target_arch() -> str:
     return platform.machine().lower().replace("amd64", "x86_64")
 
 
-def build(output_dir: Path) -> Path:
+def build(output_dir: Path, *, source_root: Path = REPO_ROOT) -> Path:
     """Constrói o executável e devolve o caminho do diretório final
-    (`<output_dir>/entropyforge-bip39-vX.Y.Z-linux-<arch>/`)."""
+    (`<output_dir>/entropyforge-bip39-vX.Y.Z-linux-<arch>/`).
+
+    `source_root` (Fase F, laboratorio de backdoor do pipeline de build --
+    ver `redteam/independent/scripts/run_executable_backdoor_lab.py`): o
+    diretorio que deve conter o `entropyforge/` a ser empacotado. O default
+    e o proprio repositorio; um valor diferente permite construir a partir
+    de uma copia adulterada de `entropyforge/` SEM tocar no repositorio
+    real, exatamente como um build "de verdade" faria se apontado para uma
+    arvore de source diferente. A resolucao funciona porque `python -m
+    nuitka` adiciona o diretorio de trabalho (`cwd`) ao inicio de
+    `sys.path` (mesma regra do `-m` do proprio Python) -- e' esse `cwd`,
+    nao o caminho do script de entrada, que decide qual `entropyforge/' e'
+    de fato compilado."""
     _check_prereqs()
     if platform.system() != "Linux" or _target_arch() != "x86_64":
         print(
@@ -101,19 +113,20 @@ def build(output_dir: Path) -> Path:
         shutil.rmtree(build_root)
     build_root.mkdir(parents=True)
 
+    wordlist_path = source_root / "entropyforge" / "data" / "english.txt"
     cmd = [
         sys.executable,
         "-m",
         "nuitka",
         "--standalone",
         "--include-package=entropyforge",
-        f"--include-data-files={WORDLIST_PATH}=entropyforge/data/english.txt",
+        f"--include-data-files={wordlist_path}=entropyforge/data/english.txt",
         *(f"--nofollow-import-to={m}" for m in EXCLUDED_MODULES),
         f"--output-dir={build_root}",
         str(ENTRY_SCRIPT),
     ]
     print("rodando:", " ".join(cmd))
-    subprocess.run(cmd, cwd=str(REPO_ROOT), check=True)
+    subprocess.run(cmd, cwd=str(source_root), check=True)
 
     dist_dir = build_root / "executable_entry.dist"
     if not dist_dir.exists():

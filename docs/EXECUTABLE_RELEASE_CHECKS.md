@@ -83,18 +83,88 @@ reimplementação independente (stdlib-only) daquele documento. Ver também
 que faz essa comparação automaticamente a cada execução da suíte de
 testes do executável.
 
+Além disso, `tests/test_executable_dev_cross_check_bip32.py` (dev-only,
+pulado automaticamente se `mnemonic`/`bip32utils` não estiverem
+instalados) repete a cadeia completa **d6 → A → B → SHA256(A‖B) →
+entropia → mnemonic → seed → chave mestra BIP-32 → chave BIP-44 →
+endereço** a partir da mnemonic **lida do stdout real do binário
+compilado** (`vector --a-digits ... --b-hex ...`, valores públicos de
+teste), nunca reimportando `entropyforge` para obtê-la. Cada seta a
+partir da mnemonic é conferida por uma implementação externa
+(`mnemonic` da Trezor para mnemonic→seed; `bip32utils` + uma
+reimplementação crua com `hmac`/`hashlib` para seed→chave mestra→
+endereço BIP-44; decodificação Base58Check independente do endereço
+final). As três checagens passam (`python3 -m unittest
+tests.test_executable_dev_cross_check_bip32 -v`). Isto fecha a lacuna
+que testar só o source deixaria: confirma que o **artefato distribuído**
+— não só o código-fonte que o gerou — interopera com implementações de
+terceiros.
+
 ## 4. Teste de backdoor contra o pipeline de build
 
-Ver seção dedicada em `docs/FINAL_SECURITY_REVIEW.md` ("Executable
-Release Security") — resumo: um backdoor experimental foi inserido numa
-cópia do source (`combine.py` vazando `A||B` por `stderr`, o mesmo tipo
-de backdoor já catalogado em `docs/REDTEAM.md`/`docs/INDEPENDENT_VERIFIER.md`
-para o `.pyz`), o executável foi construído a partir dessa cópia
-adulterada, e confirmado que: (a) `selftest` continua reportando
-`PASSOU` (nenhum KAT detecta o vazamento, mesma limitação estrutural já
-documentada para o `.pyz`); (b) o hash do executável, do manifesto de
-release, e do `verify-executable` (seção 8 de `docs/EXECUTABLE_BUILD.md`)
-TODOS divergem do release legítimo e reportam `FAIL`.
+Script: `redteam/independent/scripts/run_executable_backdoor_lab.py`.
+Saída completa: `redteam/independent/findings/executable_backdoor_lab_output.txt`.
+
+Três cenários, cada um **construído do zero** (`tools/build_executable.build`,
+usando o novo parâmetro `source_root` para apontar para uma cópia
+isolada de `entropyforge/`, nunca o diretório de desenvolvimento):
+
+  - **A (limpo)**: `entropyforge/` real do repositório.
+  - **B (alteração cosmética)**: cópia idêntica + um docstring extra em
+    `dice.py` (nenhum efeito funcional, só um literal de string novo).
+  - **C (backdoor)**: cópia com o backdoor 01 do laboratório existente
+    (`redteam/independent/labs/backdoors/backdoor_lab.py`) — `combine.py`
+    passa a escrever `A||B` combinado em `stderr`. Resultado (entropia,
+    mnemonic, vetores oficiais, `selftest`) permanece **correto** — o
+    backdoor "passa nos KATs" — mas vaza o segredo.
+
+**Resultado 1 — hash do diretório do executável**: A, B e C produzem
+**três hashes diferentes**. Notável: mesmo a alteração puramente
+cosmética (cenário B, sem nenhum efeito em tempo de execução) já muda o
+binário compilado — ao contrário de um comentário Python (descartado
+antes mesmo da geração de bytecode), um literal de string novo é
+embutido nas constantes do módulo e o Nuitka o compila. Isto confirma
+que a comparação de hash do executável tem sensibilidade pelo menos tão
+fina quanto a do `.pyz` para este tipo de mudança — não foi apenas
+assumido, foi construído e medido.
+
+**Resultado 2 — comportamento operacional**: `selftest` reporta `PASSOU`
+nos três cenários (A, B, e **C, o backdoor incluído** — nenhum KAT
+detecta o vazamento, mesma limitação estrutural já documentada para o
+`.pyz` em `docs/INDEPENDENT_VERIFIER.md`). `vector` (com
+`--a-digits`/`--b-hex` públicos de teste) também retorna sucesso nos
+três, mas **só o cenário C** imprime o marcador de laboratório com a
+entropia vazada em stdout/stderr — confirmado rodando o **binário
+compilado real**, não uma simulação.
+
+**Resultado 3 — auto-verificação (o que NÃO detecta nada)**: gerar o
+manifesto a partir da MESMA cópia de source usada para construir sempre
+"bate" consigo mesma, inclusive para o backdoor — isto é o comportamento
+correto e já documentado (`verify_release.py`/`verify_executable.py`:
+"só tem valor se o manifesto vier de um canal independente do
+artefato"). Um atacante que controla source e manifesto ao mesmo tempo
+não é pego por essa checagem sozinha.
+
+**Resultado 4 — o que de fato detecta (auditor independente)**: rodando
+`independent-verifier/verify_executable.py` com `--entropyforge-root`
+apontando para a cópia **real e revisada do repositório** (não a cópia
+do cenário) contra o manifesto e o `dist/` de cada cenário:
+
+| Cenário | `hash_vs_manifesto` | `selftest` | `reconstrucao_a_partir_do_source` | `RESULTADO GERAL` |
+|---|---|---|---|---|
+| A (limpo) | PASS | PASS | **PASS** | PASS |
+| B (cosmético) | PASS | PASS | **FAIL** | FAIL |
+| C (backdoor) | PASS | PASS | **FAIL** | FAIL |
+
+A checagem de reconstrução — a única que reconstrói a partir de uma
+cópia de source que o AUDITOR controla, não o publicador do artefato —
+detecta tanto o backdoor quanto a alteração puramente cosmética, com
+zero falsos positivos (o cenário legítimo passa) e zero falsos negativos
+nesta amostra. As duas primeiras checagens (`hash_vs_manifesto`,
+`selftest`) sozinhas **não** detectariam nem B nem C — reforça por que
+`verify_release.py` (rápido, sem reconstruir) nunca deve ser tratado
+como suficiente; `verify_executable.py` (Fase F, com reconstrução) é a
+checagem que carrega o peso real desta garantia.
 
 ## 5. Windows
 
