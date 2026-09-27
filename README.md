@@ -32,6 +32,18 @@ python3 -I -B entropyforge.pyz selftest    # auto-testes
 python3 -I -B entropyforge.pyz generate    # gera um mnemonic real (exige TTY, offline)
 ```
 
+Para montar e verificar um **release completo** (o pacote autocontido que
+vai para a máquina offline — `.pyz` + hashes + toda a documentação):
+
+```sh
+make release          # build + MANIFEST.txt + monta release/
+make verify-release   # reconfere tudo do zero; imprime só PASS/FAIL
+```
+
+Ver `docs/VERIFY.md` para o passo a passo de verificação (inclusive por
+alguém que não construiu o release, a partir de um `MANIFEST.txt`
+recebido separadamente).
+
 **Antes de usar para fundos reais**, leia `docs/OPERATIONS.md` (como
 operar com segurança) e `docs/THREAT_MODEL.md` (o que este programa
 protege, e o que não protege).
@@ -49,6 +61,7 @@ protege, e o que não protege).
 | [`docs/GENERATION_CEREMONY.md`](docs/GENERATION_CEREMONY.md) | Os 15 passos da cerimônia de geração offline, do boot ao desligamento |
 | [`docs/WALLET_IMPORT_TEST.md`](docs/WALLET_IMPORT_TEST.md) | Teste manual de importação em uma carteira externa (Sparrow), com uma mnemonic inteiramente fictícia, para confirmar a interoperabilidade BIP-39/BIP-32 |
 | [`docs/RELEASE_SECURITY_CHECKLIST.md`](docs/RELEASE_SECURITY_CHECKLIST.md) | Checklist rápido pré-geração (sem exibir nenhum segredo) |
+| [`docs/VERIFY.md`](docs/VERIFY.md) | HOWTO prático: como rodar `make verify-release`/`verify_release.py` e o que o resultado prova (e não prova) |
 | [`docs/REDTEAM.md`](docs/REDTEAM.md) | Auditoria adversarial (red team): o que foi atacado, o que quebrou, o que foi corrigido |
 | [`docs/INDEPENDENT_VERIFIER.md`](docs/INDEPENDENT_VERIFIER.md) | Verificação de segunda ordem: um verificador separado que não confia no EntropyForge nem em si mesmo sem se testar; inclui `verify_release.py` (`PASS`/`FAIL` contra um `MANIFEST.txt` de release) |
 | [`docs/FINAL_SECURITY_REVIEW.md`](docs/FINAL_SECURITY_REVIEW.md) | Revisão de segurança final antes de considerar o projeto candidato a uso real |

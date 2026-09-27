@@ -3,5 +3,6 @@ __pycache__/
 *.pyz
 SHA256SUMS
 MANIFEST.txt
+/release/
 .pytest_cache/
 *.egg-info/

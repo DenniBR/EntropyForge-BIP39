@@ -1,6 +1,6 @@
 PYTHON ?= python3
 
-.PHONY: test selftest vectors build repro lint clean simulate
+.PHONY: test selftest vectors build repro lint clean simulate release verify-release
 
 ## Roda toda a suite de testes (unittest da stdlib; sem dependencias de terceiros).
 test:
@@ -46,6 +46,35 @@ lint:
 simulate:
 	$(PYTHON) tools/simulate_power.py
 
+## Fluxo OFICIAL de release (Fase E): builda o .pyz, gera o manifesto de
+## release (MANIFEST.txt) e monta o pacote autocontido em release/ (o
+## .pyz, os hashes, e toda a documentacao) -- o que deve ser levado para a
+## maquina permanentemente offline. Ver docs/VERIFY.md para o passo a
+## passo de verificacao e docs/GENERATION_CEREMONY.md para a cerimonia de
+## geracao em si.
+release: build
+	$(PYTHON) tools/build_release_manifest.py
+	$(PYTHON) tools/assemble_release.py
+
+## Fluxo OFICIAL de verificacao (Fase E): reconfere, do zero, cada campo
+## de MANIFEST.txt contra o codigo-fonte e o .pyz atuais (nao contra o
+## conteudo de release/, que e so uma copia -- rode `make release` de
+## novo se quiser reconferir a copia tambem). Imprime SOMENTE PASS/FAIL.
+## Requer que `make release` (ou ao menos `make build` +
+## `tools/build_release_manifest.py`) ja tenha rodado.
+verify-release:
+	@test -f MANIFEST.txt || (echo "erro: MANIFEST.txt nao existe -- rode 'make release' primeiro" && exit 2)
+	@test -f entropyforge.pyz || (echo "erro: entropyforge.pyz nao existe -- rode 'make release' primeiro" && exit 2)
+	$(PYTHON) independent-verifier/verify_release.py \
+		--manifest MANIFEST.txt \
+		--entropyforge-root entropyforge \
+		--pyz entropyforge.pyz \
+		--verifier-root independent-verifier/verifier \
+		--build-script tools/build_pyz.py \
+		--vectors tests/vectors/bip39_vectors.json \
+		--verbose
+
 clean:
 	find . -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+	rm -rf release
 	rm -f entropyforge.pyz SHA256SUMS MANIFEST.txt
