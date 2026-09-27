@@ -30,8 +30,8 @@ sys.path.insert(0, str(REPO_ROOT / "independent-verifier"))
 from verifier.release_manifest import compute_release_manifest  # noqa: E402
 
 
-def _find_executable_dist_dir() -> Path | None:
-    base = REPO_ROOT / "dist_executable"
+def _find_executable_dist_dir(repo_root: Path = REPO_ROOT) -> Path | None:
+    base = repo_root / "dist_executable"
     if not base.is_dir():
         return None
     candidates = sorted(base.glob("entropyforge-bip39-v*-*-*"))
