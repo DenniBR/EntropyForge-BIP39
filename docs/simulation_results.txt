@@ -1,0 +1,43 @@
+# Estudo de simulacao — gerado em 2026-09-27 03:09:01 UTC
+# alpha familiar (Holm) = 0.01
+# seed do simulador (so para vies/dependencia controlados) = 20260927
+
+## 1. Taxa de falso positivo (fonte: os.getrandom, entropia real do SO)
+n=  126 trials= 3000 fail_rate=0.0237 warn_rate=0.2463
+    autocorrelation_lag1     fail_rate=0.0030
+    autocorrelation_lag2     fail_rate=0.0017
+    autocorrelation_lag3     fail_rate=0.0027
+    face_frequency           fail_rate=0.0110
+    repeats                  fail_rate=0.0023
+    runs                     fail_rate=0.0017
+    serial_difference        fail_rate=0.0020
+n=  600 trials= 1000 fail_rate=0.0110 warn_rate=0.2810
+    autocorrelation_lag1     fail_rate=0.0010
+    autocorrelation_lag2     fail_rate=0.0020
+    autocorrelation_lag3     fail_rate=0.0010
+    face_frequency           fail_rate=0.0040
+    runs                     fail_rate=0.0040
+
+## 2. Poder contra d6 com uma face viciada (fonte: random.Random, seed fixa)
+n=  126 p_biased=0.18 trials= 1500 detect_rate=0.0180
+n=  126 p_biased=0.20 trials= 1500 detect_rate=0.0440
+n=  126 p_biased=0.25 trials= 1500 detect_rate=0.2407
+n=  126 p_biased=0.30 trials= 1500 detect_rate=0.6853
+n=  600 p_biased=0.18 trials= 1500 detect_rate=0.0293
+n=  600 p_biased=0.20 trials= 1500 detect_rate=0.1840
+n=  600 p_biased=0.25 trials= 1500 detect_rate=0.9527
+n=  600 p_biased=0.30 trials= 1500 detect_rate=1.0000
+n= 3000 p_biased=0.18 trials= 1500 detect_rate=0.1173
+n= 3000 p_biased=0.20 trials= 1500 detect_rate=0.9180
+n= 3000 p_biased=0.25 trials= 1500 detect_rate=1.0000
+n= 3000 p_biased=0.30 trials= 1500 detect_rate=1.0000
+
+## 3. Poder contra dependencia markoviana (faces marginalmente uniformes)
+n=  126 stay_prob=0.20 trials= 1500 detect_rate=0.0467
+n=  126 stay_prob=0.30 trials= 1500 detect_rate=0.7460
+n=  126 stay_prob=0.40 trials= 1500 detect_rate=0.9993
+n=  600 stay_prob=0.20 trials= 1500 detect_rate=0.1920
+n=  600 stay_prob=0.30 trials= 1500 detect_rate=1.0000
+n=  600 stay_prob=0.40 trials= 1500 detect_rate=1.0000
+
+# tempo total: 120.1s

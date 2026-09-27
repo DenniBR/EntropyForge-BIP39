@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.pyz
+SHA256SUMS
+.pytest_cache/
+*.egg-info/
