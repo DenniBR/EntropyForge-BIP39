@@ -19,6 +19,29 @@ class BenignProcessTests(unittest.TestCase):
         self.assertFalse(result.touched_network)
         self.assertFalse(result.wrote_to_disk)
 
+    def test_module_execution_af_unix_probe_is_not_counted_as_network(self):
+        # Regressao (Fase D, achado de auditoria): `python3 -m <pacote>`
+        # aciona, neste tipo de ambiente Linux/glibc, uma tentativa de
+        # socket AF_UNIX local para /var/run/nscd/socket (falha com ENOENT
+        # -- nscd nao esta rodando; NUNCA sai da maquina). Isto e
+        # reproduzivel com um pacote Python COMPLETAMENTE VAZIO, sem
+        # nenhuma relacao com o EntropyForge -- antes da correcao,
+        # `touched_network` era True mesmo para esse pacote vazio, um
+        # falso positivo que anulava a utilidade do sinal.
+        pkg_dir = self.tmp / "emptypkg"
+        pkg_dir.mkdir()
+        (pkg_dir / "__init__.py").write_text("")
+        (pkg_dir / "__main__.py").write_text("print('hello')\n")
+        import os
+
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(self.tmp)
+        result = trace_process([sys.executable, "-B", "-m", "emptypkg"], cwd=self.tmp, env=env)
+        self.assertFalse(
+            result.touched_network,
+            msg=f"network_syscalls nao deveria conter apenas AF_UNIX: {result.network_syscalls}",
+        )
+
     def test_plain_script_does_not_falsely_report_spawned_process(self):
         # Regressao: a primeira linha de qualquer log do strace e sempre
         # o execve do PROPRIO comando de nivel superior sendo tracado (e

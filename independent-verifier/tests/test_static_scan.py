@@ -73,6 +73,41 @@ class DiffTests(unittest.TestCase):
             self.assertFalse(Path(f.file).is_absolute(), msg=f.file)
 
 
+class ObfuscationLimitTests(unittest.TestCase):
+    """Fase D (Fase 41): confirma empiricamente o limite documentado
+    ('static scan is evidence, not proof') contra um backdoor de socket
+    ofuscado (backdoor 11 do laboratorio) que constroi o nome do modulo e
+    dos metodos via chr()/join/getattr, sem a string literal 'socket'
+    aparecer em lugar nenhum do source."""
+
+    OBFUSCATED_SOCKET_SNIPPET = (
+        "def combine(a, b):\n"
+        "    digest = a  # placeholder\n"
+        "    _lab_modname = ''.join(chr(c) for c in (115, 111, 99, 107, 101, 116))\n"
+        "    _lab_mod = __import__(_lab_modname)\n"
+        "    _lab_ctor = getattr(_lab_mod, _lab_modname)\n"
+        "    _lab_af = getattr(_lab_mod, 'AF_INET')\n"
+        "    _s = _lab_ctor(_lab_af, 1)\n"
+        "    return digest\n"
+    )
+
+    def test_network_category_is_not_triggered_by_name_construction(self):
+        findings = scan_source_text(self.OBFUSCATED_SOCKET_SNIPPET, "combine.py")
+        self.assertFalse(
+            any(f.category == "rede" for f in findings),
+            msg="a ofuscacao deveria escapar da categoria 'rede' -- se isto falhar, "
+            "o scanner ficou mais esperto (bom!), atualize este teste",
+        )
+
+    def test_reflection_category_still_flags_it_as_suspicious(self):
+        # o scanner NAO fica cego: __import__/getattr dinamicos ainda
+        # disparam a categoria "reflexao", dando a um revisor humano um
+        # motivo concreto para investigar o arquivo manualmente.
+        findings = scan_source_text(self.OBFUSCATED_SOCKET_SNIPPET, "combine.py")
+        self.assertTrue(any(f.category == "reflexao" for f in findings))
+        self.assertGreaterEqual(len([f for f in findings if f.category == "reflexao"]), 3)
+
+
 class RealCodebaseTests(unittest.TestCase):
     def test_scan_runs_without_crashing_on_real_source(self):
         findings = scan_directory(REPO_ROOT / "entropyforge")

@@ -1,0 +1,61 @@
+Fase D, secao 10/41 -- Backdoor 11 (socket ofuscado) vs static_scan.py e
+vs guard.py (runtime)
+============================================================================
+
+Backdoor 11 (`redteam/independent/labs/backdoors/backdoor_lab.py`) e o
+mesmo ataque de socket UDP do backdoor 03, mas com toda referencia direta
+ao modulo `socket` removida do source: o nome do modulo e dos metodos
+usados e construido em tempo de execucao via `chr()` + `''.join(...)` e
+acessado via `__import__`/`getattr` -- a string literal "socket" NUNCA
+aparece em combine.py.
+
+----------------------------------------------------------------------
+Resultado 1: static_scan.py (analise estatica externa, Fase 8)
+----------------------------------------------------------------------
+
+A categoria "rede" NAO dispara (nem na camada AST, nem na textual) --
+como esperado, ja que nenhum termo da lista de suspeitos de rede
+("socket", "connect", "send", etc.) aparece literalmente no source.
+
+PORÉM, o scanner ainda produz 13 achados NOVOS (diff contra o baseline
+limpo de entropyforge/), todos nas categorias "reflexao" (5x __import__/
+getattr via AST, 5x os mesmos termos via camada textual) e
+"arquivo_generico" (1x `write` via AST, 1x via textual). Um revisor
+humano vendo "combine.py, o modulo mais pequeno e critico do projeto,
+ganhou de repente 5 chamadas de reflexao (__import__/getattr) que nao
+existiam antes" tem motivo forte para investigar manualmente -- mas o
+scanner, por si so, NAO rotula isto como um problema de REDE, so como
+"uso de reflexao", uma categoria mais generica.
+
+CONCLUSAO: static_scan.py NAO e enganado a ponto de nao notar nada (o
+requisito de auditoria original -- "static scan is evidence, not proof"
+-- e confirmado em ambas as direcoes: nao prova ausencia, mas tambem nao
+fica cego a um ataque de ofuscacao moderada). A categorizacao especifica
+("rede") e que e evadida; a deteccao de ALGO suspeito nao e.
+
+----------------------------------------------------------------------
+Resultado 2: guard.py (audit hook em tempo de execucao, ja existente)
+----------------------------------------------------------------------
+
+O guard BLOQUEIA a chamada normalmente, com a MESMA mensagem de erro do
+backdoor 03 nao-ofuscado:
+
+    GuardViolation("operacao bloqueada pela politica de seguranca: evento
+    de auditoria 'socket.__new__'. ...")
+
+Isto acontece porque o audit hook do CPython (`sys.addaudithook`)
+intercepta o EVENTO gerado pelo PROPRIO INTERPRETADOR quando o objeto
+`socket.socket` e instanciado -- o nome do evento ('socket.__new__') e
+determinado pela implementacao C do modulo `socket`, nao pelo texto do
+codigo Python que o chamou. Construir o nome do modulo dinamicamente
+(`__import__(''.join(chr(c) for c in (115,111,99,...)))`) muda COMO o
+codigo Python se refere ao modulo, mas nao muda QUAL evento de auditoria
+o interpretador emite quando o socket e de fato criado.
+
+CONCLUSAO CENTRAL desta fase: ofuscacao de codigo-fonte e uma tecnica
+eficaz contra analise ESTATICA (ela pode, na melhor das hipoteses,
+degradar a categorizacao de static_scan.py), mas e COMPLETAMENTE
+INEFICAZ contra o bloqueio em tempo de EXECUCAO do guard.py, porque este
+opera numa camada (eventos de auditoria do interpretador, correspondendo
+a syscalls reais) que fica ABAIXO de qualquer transformacao textual do
+codigo-fonte que gerou a chamada.

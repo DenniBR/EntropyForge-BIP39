@@ -14,6 +14,7 @@ from verifier.hashing import (
     manifest_to_text,
     parse_manifest_text,
     read_manifest,
+    verify_against_manifest,
     write_manifest,
 )
 
@@ -122,6 +123,36 @@ class DiffTests(unittest.TestCase):
             d = diff_manifests(before, after)
             self.assertIn("sneaky_module.py", d.added)
             self.assertIn("dice.py", d.removed)
+
+
+class VerifyAgainstManifestTests(unittest.TestCase):
+    """`verify_against_manifest` nao tinha nenhum teste ate a Fase D desta
+    auditoria, apesar de ser a funcao de uso tipico do verificador ('este
+    diretorio ainda bate com um manifesto obtido em outro momento/lugar?')."""
+
+    def test_matches_a_manifest_captured_earlier(self):
+        # `verify_against_manifest` reconstroi o manifesto de `root` SEM
+        # restricao de sufixo (ver build_manifest, include_suffixes=None
+        # por padrao) -- o manifesto de referencia precisa ser construido
+        # da MESMA forma, senao a comparacao e entre conjuntos de arquivos
+        # diferentes (ex.: so .py vs. tudo incluindo data/english.txt).
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            shutil.copytree(REPO_ROOT / "entropyforge", tmp / "e")
+            reference_manifest = build_manifest(tmp / "e")
+            d = verify_against_manifest(tmp / "e", reference_manifest)
+            self.assertTrue(d.is_identical, msg=d)
+
+    def test_detects_drift_from_a_manifest_captured_earlier(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            shutil.copytree(REPO_ROOT / "entropyforge", tmp / "e")
+            reference_manifest = build_manifest(tmp / "e")
+            target = tmp / "e" / "combine.py"
+            target.write_text(target.read_text() + "\n# alterado apos o manifesto de referencia\n")
+            d = verify_against_manifest(tmp / "e", reference_manifest)
+            self.assertFalse(d.is_identical)
+            self.assertIn("combine.py", d.changed)
 
 
 if __name__ == "__main__":

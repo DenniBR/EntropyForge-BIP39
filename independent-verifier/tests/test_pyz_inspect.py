@@ -1,3 +1,4 @@
+import hashlib
 import io
 import shutil
 import sys
@@ -77,6 +78,33 @@ class CleanPyzTests(unittest.TestCase):
         bogus.write_bytes(b"#!/usr/bin/env python3\nprint('nope')\n")
         with self.assertRaises(PyzFormatError):
             read_pyz_entries(bogus)
+
+    def test_reordering_zip_entries_is_not_flagged_as_tamper(self):
+        # Fase D, secao 11: reordenar as entradas do .pyz (MESMO conteudo,
+        # ordem diferente) muda o hash BRUTO do arquivo inteiro, mas nao
+        # deveria ser tratado como adulteracao -- compare_pyz_to_source
+        # compara por NOME (independente de ordem), ao contrario de uma
+        # checagem ingenua de hash do arquivo todo (build_repro.py), que
+        # teria um falso positivo aqui.
+        data = self.pyz.read_bytes()
+        zstart = data.index(ZIP_MAGIC)
+        shebang = data[:zstart]
+        with zipfile.ZipFile(io.BytesIO(data[zstart:])) as zin:
+            content = {n: zin.read(n) for n in zin.namelist()}
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_STORED) as zout:
+            for name in sorted(content.keys(), reverse=True):  # ordem invertida
+                zout.writestr(name, content[name])
+        reordered = self.tmp / "reordered.pyz"
+        reordered.write_bytes(shebang + buf.getvalue())
+
+        self.assertNotEqual(
+            hashlib.sha256(reordered.read_bytes()).hexdigest(),
+            hashlib.sha256(self.pyz.read_bytes()).hexdigest(),
+            msg="pre-condicao: o hash bruto do arquivo deve mudar com a reordenacao",
+        )
+        r = compare_pyz_to_source(reordered, REPO_ROOT / "entropyforge")
+        self.assertTrue(r.ok, msg=r)
 
 
 class TamperedPyzTests(unittest.TestCase):

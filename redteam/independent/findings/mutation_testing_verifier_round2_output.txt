@@ -1,0 +1,22 @@
+--- aplicando mutante: manifestdiff_is_identical_always_true ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: verify_against_manifest_ignores_current_state ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: wordlist_check_forces_ok_true ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: pyz_inspect_ignores_content_mismatches ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: static_scan_diff_findings_always_empty ---
+    KILLED (algum teste pegou o mutante)
+--- aplicando mutante: bip39_compare_result_ok_ignores_mismatches ---
+    KILLED (algum teste pegou o mutante)
+
+=== RESUMO (mutation testing do independent-verifier, rodada 2) ===
+manifestdiff_is_identical_always_true            KILLED (algum teste pegou o mutante)
+verify_against_manifest_ignores_current_state    KILLED (algum teste pegou o mutante)
+wordlist_check_forces_ok_true                    KILLED (algum teste pegou o mutante)
+pyz_inspect_ignores_content_mismatches           KILLED (algum teste pegou o mutante)
+static_scan_diff_findings_always_empty           KILLED (algum teste pegou o mutante)
+bip39_compare_result_ok_ignores_mismatches       KILLED (algum teste pegou o mutante)
+
+0 de 6 mutantes SOBREVIVERAM (lacunas de cobertura reais).

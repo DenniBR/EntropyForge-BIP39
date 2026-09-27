@@ -46,6 +46,7 @@ class TraceResult:
     process_syscalls: tuple[str, ...]
     file_write_syscalls: tuple[str, ...]
     openat_calls: tuple[str, ...] = field(default_factory=tuple)
+    local_unix_socket_syscalls: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def touched_network(self) -> bool:
@@ -77,13 +78,31 @@ def _parse_strace_log(log_text: str) -> dict[str, list[str]]:
     verdadeiro, mesmo para um `python3 -c "1+1"` que nao gera nenhum
     filho -- um falso positivo que anularia a utilidade do sinal. Por
     isso a primeira ocorrencia de `execve` no log inteiro e excluida.
+
+    SEGUNDO bug ja corrigido aqui (Fase D, achado de auditoria): um
+    `socket()`/`connect()` para um socket AF_UNIX (IPC local, ex.: glibc
+    tentando falar com `nscd` em `/var/run/nscd/socket` durante a
+    resolucao de `python3 -m <pacote>` -- confirmado reproduzivel com um
+    pacote Python COMPLETAMENTE VAZIO, sem nenhuma linha de codigo do
+    EntropyForge) NUNCA sai da maquina e nao e "rede" no sentido em que
+    este modulo se importa (exfiltracao). Antes da correcao,
+    `touched_network` era `True` ate para esse pacote vazio -- um falso
+    positivo que anulava a utilidade do sinal exatamente como o bug do
+    `execve` acima. Linhas AF_UNIX sao contadas separadamente em
+    `local_unix_socket_syscalls` (nunca descartadas silenciosamente),
+    e so uma familia de enderecos REALMENTE capaz de rede (AF_INET,
+    AF_INET6, AF_PACKET, etc.) conta para `network_syscalls`/
+    `touched_network`.
     """
-    network, process_calls, file_writes, openat_calls = [], [], [], []
+    network, process_calls, file_writes, openat_calls, local_unix = [], [], [], [], []
     seen_initial_execve = False
     for line in log_text.splitlines():
         for name in NETWORK_SYSCALLS:
             if re.search(rf"\b{name}\(", line):
-                network.append(line.strip())
+                if "AF_UNIX" in line:
+                    local_unix.append(line.strip())
+                else:
+                    network.append(line.strip())
                 break
         for name in PROCESS_SYSCALLS:
             if re.search(rf"\b{name}\(", line):
@@ -101,6 +120,7 @@ def _parse_strace_log(log_text: str) -> dict[str, list[str]]:
         "process": process_calls,
         "file_writes": file_writes,
         "openat": openat_calls,
+        "local_unix": local_unix,
     }
 
 
@@ -155,4 +175,5 @@ def trace_process(
         process_syscalls=tuple(parsed["process"]),
         file_write_syscalls=tuple(parsed["file_writes"]),
         openat_calls=tuple(parsed["openat"]),
+        local_unix_socket_syscalls=tuple(parsed["local_unix"]),
     )
