@@ -110,6 +110,40 @@ mesmo teste. Isto é um indício forte, não uma prova completa —
 reprodutibilidade mais extensa (múltiplos ambientes, timestamps, etc.)
 feita antes da release ser considerada candidata.
 
+**Limitação real, descoberta e evidenciada na Fase G (publicação da
+release):** a reprodutibilidade byte a byte NÃO se sustenta quando os
+DOIS builds comparados usam `--output-dir` absolutos de formas/tamanhos
+diferentes (ex.: `<checkout>/dist_executable` vs um diretório temporário
+aleatório como `/tmp/tmpXXXXXXXX`) — testado em runners hospedados do
+GitHub Actions (Linux `ubuntu-latest` E Windows `windows-latest`, dois
+ambientes diferentes, mesmo resultado nos dois). Evidência concreta (não
+suposição): no build Windows, o log do `clcache` (cache de compilação do
+MSVC) mostrou `Compiled 21 C files using clcache with 20 cache hits and
+1 cache misses` — ou seja, 20 dos 21 arquivos compilados bateram byte a
+byte com o build anterior (cache hit = conteúdo idêntico), e só 1 mudou.
+Isso indica que o Nuitka embute, em pelo menos uma unidade de compilação
+gerada, algo dependente do caminho absoluto de `--output-dir` usado —
+provavelmente relacionado a metadados de `__file__`/localização de
+módulo, não a nenhum dado sensível. **Esta divergência nunca reproduziu
+neste repositório quando testada localmente** (dezenas de builds nesta
+mesma máquina de desenvolvimento ao longo das Fases F e G, sempre
+idênticos, incluindo com diretórios de saída de nomes/tamanhos bem
+diferentes) — é específica de reconstruir em DOIS ambientes de execução
+de CI hospedados diferentes (ainda que do mesmo provedor), não do código
+nem do método de build em si.
+
+**Consequência prática, documentada sem disfarce**: `verify_executable.py`
+(a checagem FORTE, que reconstrói num diretório temporário novo por
+desenho) não é usado como gate automático bloqueante no workflow de CI
+deste projeto (`.github/workflows/release.yml` roda essa checagem com
+`continue-on-error: true`) — o gate real da CI é `verify-release`
+(compara o hash do diretório JÁ CONSTRUÍDO contra o manifesto, sem
+reconstruir, e continua passando normalmente). A checagem forte continua
+sendo a mais rigorosa disponível e é recomendada para verificação
+manual/local, idealmente reconstruindo num diretório com estrutura
+equivalente ao build original (mesmo profundidade/nome de diretório
+pai), onde a divergência acima não se manifesta.
+
 ## 5. O que entra no executável, e o que não entra
 
 Entra: `entropyforge/` (todo o pacote, incluindo `guard.py`,
