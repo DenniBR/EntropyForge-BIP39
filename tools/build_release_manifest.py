@@ -17,10 +17,21 @@ dois sozinho.
 
 Uso:
     python3 tools/build_release_manifest.py [MANIFEST.txt]
+    python3 tools/build_release_manifest.py --executable-dist DIR [MANIFEST.txt]
+
+`--executable-dist` (opcional; usado pelo CI multi-plataforma -- ver
+`.github/workflows/release.yml`): aponta explicitamente para o
+diretorio do executavel a usar, em vez de auto-detectar o unico
+candidato em `dist_executable/`. Necessario quando mais de um
+executavel (ex.: Linux E Windows, cada um construido numa maquina/job
+diferente) pode existir lado a lado -- cada plataforma gera o SEU
+PROPRIO `MANIFEST-<plataforma>.txt`, apontando so para o seu executavel;
+nenhum campo do manifesto e' multi-plataforma.
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -38,7 +49,22 @@ def _find_executable_dist_dir(repo_root: Path = REPO_ROOT) -> Path | None:
     return candidates[0] if candidates else None
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        "output", nargs="?", default=None, type=Path,
+        help="caminho de saida do manifesto (default: MANIFEST.txt na raiz do repositorio)",
+    )
+    parser.add_argument(
+        "--executable-dist", type=Path, default=None,
+        help="diretorio do executavel a usar (default: auto-detecta o unico em dist_executable/)",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
     pyz_path = REPO_ROOT / "entropyforge.pyz"
     if not pyz_path.exists():
         print(
@@ -48,12 +74,12 @@ def main() -> int:
         )
         return 1
 
-    executable_dist_dir = _find_executable_dist_dir()
-    if executable_dist_dir is None:
+    executable_dist_dir = args.executable_dist or _find_executable_dist_dir()
+    if executable_dist_dir is None or not executable_dist_dir.is_dir():
         print(
-            "erro: nenhum diretorio de executavel encontrado em dist_executable/. "
+            f"erro: diretorio do executavel nao encontrado ({executable_dist_dir or 'dist_executable/*'}). "
             "Rode 'make executable' (ou 'python3 tools/build_executable.py') antes "
-            "de gerar o manifesto de release.",
+            "de gerar o manifesto de release, ou passe --executable-dist explicitamente.",
             file=sys.stderr,
         )
         return 1
@@ -66,7 +92,7 @@ def main() -> int:
         executable_dist_dir=executable_dist_dir,
     )
 
-    out_path = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO_ROOT / "MANIFEST.txt"
+    out_path = args.output or (REPO_ROOT / "MANIFEST.txt")
     out_path.write_text(manifest.to_text(), encoding="utf-8")
     print(f"{out_path}:")
     print(manifest.to_text(), end="")

@@ -1,0 +1,218 @@
+name: Publish release
+
+# Disparado manualmente (nunca em todo push -- publicar uma release e
+# um passo deliberado, nao automatico). Constroi os DOIS artefatos
+# distribuiveis (entropyforge.pyz + executaveis standalone Linux x86_64
+# e Windows x86_64, ver docs/EXECUTABLE_BUILD.md) em runners REAIS de
+# cada sistema operacional -- o job Windows roda no `windows-latest` do
+# proprio GitHub Actions, uma maquina Windows de verdade, nao uma
+# emulacao. Nenhum artefato falso/placeholder e' publicado: se um job de
+# build falhar, o job `publish` nunca roda (por causa de `needs:`), e
+# nada e' publicado para aquela plataforma.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag da release (ex.: v1.0.0)"
+        required: true
+      prerelease:
+        description: "Marcar como pre-release?"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Suite principal (tests/)
+        run: python3 -B -m unittest discover -s tests -v
+      - name: Suite do independent-verifier
+        working-directory: independent-verifier
+        run: python3 -B -m unittest discover -s tests -v
+
+  build-linux:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar dependencias de BUILD (nunca de runtime -- ver docs/EXECUTABLE_BUILD.md)
+        run: pip install nuitka patchelf
+      - name: make build (.pyz)
+        run: make build
+      - name: make executable (Linux x86_64)
+        run: make executable
+      - name: Localizar diretorio do executavel
+        id: dist
+        run: echo "dir=$(ls -d dist_executable/entropyforge-bip39-v*-*-*)" >> "$GITHUB_OUTPUT"
+      - name: Smoke test do binario recem-construido
+        run: |
+          "${{ steps.dist.outputs.dir }}/entropyforge-bip39" --version
+          "${{ steps.dist.outputs.dir }}/entropyforge-bip39" selftest
+          "${{ steps.dist.outputs.dir }}/entropyforge-bip39" vector --a-digits 111111111111111111111111 --b-hex 0000000000000000000000000000000000000000000000000000000000000000
+      - name: Gerar MANIFEST-linux-x86_64.txt
+        run: python3 tools/build_release_manifest.py --executable-dist "${{ steps.dist.outputs.dir }}" MANIFEST-linux-x86_64.txt
+      - name: verify-release (checagem rapida)
+        run: |
+          python3 independent-verifier/verify_release.py \
+            --manifest MANIFEST-linux-x86_64.txt \
+            --entropyforge-root entropyforge \
+            --pyz entropyforge.pyz \
+            --verifier-root independent-verifier/verifier \
+            --build-script tools/build_pyz.py \
+            --vectors tests/vectors/bip39_vectors.json \
+            --executable-dist "${{ steps.dist.outputs.dir }}" \
+            --verbose
+      - name: verify-executable (checagem FORTE -- reconstroi e compara)
+        run: |
+          python3 independent-verifier/verify_executable.py \
+            --manifest MANIFEST-linux-x86_64.txt \
+            --entropyforge-root entropyforge \
+            --executable-dist "${{ steps.dist.outputs.dir }}" \
+            --verbose
+      - name: Preparar diretorio de upload (um root unico -- evita ambiguidade de caminho no upload-artifact)
+        run: |
+          mkdir -p upload_staging
+          cp -r "${{ steps.dist.outputs.dir }}" upload_staging/
+          cp entropyforge.pyz upload_staging/
+          cp MANIFEST-linux-x86_64.txt upload_staging/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: upload_staging
+          retention-days: 7
+
+  build-windows:
+    needs: test
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar dependencia de BUILD (nunca de runtime -- ver docs/EXECUTABLE_BUILD.md)
+        run: pip install nuitka
+      - name: make build equivalente (.pyz -- identico byte a byte ao do job Linux, ja provado reprodutivel na Fase F)
+        run: python tools/build_pyz.py entropyforge.pyz
+      - name: Build do executavel Windows x86_64 (Nuitka --standalone, MSVC do runner)
+        run: python tools/build_executable.py --output-dir dist_executable
+      - name: Localizar diretorio do executavel
+        id: dist
+        run: echo "dir=$(ls -d dist_executable/entropyforge-bip39-v*-*-*)" >> "$GITHUB_OUTPUT"
+      - name: Smoke test do binario recem-construido (Windows de verdade)
+        run: |
+          "${{ steps.dist.outputs.dir }}/entropyforge-bip39.exe" --version
+          "${{ steps.dist.outputs.dir }}/entropyforge-bip39.exe" selftest
+          "${{ steps.dist.outputs.dir }}/entropyforge-bip39.exe" vector --a-digits 111111111111111111111111 --b-hex 0000000000000000000000000000000000000000000000000000000000000000
+      - name: Gerar MANIFEST-windows-x86_64.txt
+        run: python tools/build_release_manifest.py --executable-dist "${{ steps.dist.outputs.dir }}" MANIFEST-windows-x86_64.txt
+      - name: verify-release (checagem rapida)
+        run: |
+          python independent-verifier/verify_release.py \
+            --manifest MANIFEST-windows-x86_64.txt \
+            --entropyforge-root entropyforge \
+            --pyz entropyforge.pyz \
+            --verifier-root independent-verifier/verifier \
+            --build-script tools/build_pyz.py \
+            --vectors tests/vectors/bip39_vectors.json \
+            --executable-dist "${{ steps.dist.outputs.dir }}" \
+            --verbose
+      - name: verify-executable (checagem FORTE -- reconstroi no MESMO Windows e compara)
+        run: |
+          python independent-verifier/verify_executable.py \
+            --manifest MANIFEST-windows-x86_64.txt \
+            --entropyforge-root entropyforge \
+            --executable-dist "${{ steps.dist.outputs.dir }}" \
+            --verbose
+      - name: Preparar diretorio de upload (um root unico -- evita ambiguidade de caminho no upload-artifact)
+        run: |
+          mkdir -p upload_staging
+          cp -r "${{ steps.dist.outputs.dir }}" upload_staging/
+          cp MANIFEST-windows-x86_64.txt upload_staging/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: upload_staging
+          retention-days: 7
+
+  publish:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-artifacts
+          path: staging/linux
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-artifacts
+          path: staging/windows
+      - name: Restaurar bit de execucao (upload-artifact/zip nao preserva +x)
+        run: |
+          LINUX_DIST=$(ls -d staging/linux/entropyforge-bip39-*-linux-*)
+          chmod +x "$LINUX_DIST/entropyforge-bip39"
+          echo "linux_dist=$LINUX_DIST" >> "$GITHUB_ENV"
+          echo "windows_dist=$(ls -d staging/windows/entropyforge-bip39-*-windows-*)" >> "$GITHUB_ENV"
+      - name: Confirmar que o executavel Linux baixado do artifact ainda roda
+        run: |
+          "$linux_dist/entropyforge-bip39" --version
+          "$linux_dist/entropyforge-bip39" selftest
+      - name: Empacotar assets finais (tar.gz/zip/manifests/verifier bundle/hashes)
+        run: |
+          python3 tools/ci_package_assets.py \
+            --linux-dist "$linux_dist" \
+            --windows-dist "$windows_dist" \
+            --pyz staging/linux/entropyforge.pyz \
+            --manifest-linux staging/linux/MANIFEST-linux-x86_64.txt \
+            --manifest-windows staging/windows/MANIFEST-windows-x86_64.txt \
+            --repo-root . \
+            --out-dir release_assets
+      - name: Confirmar que o executavel Linux empacotado (.tar.gz) ainda roda
+        run: |
+          rm -rf pkg_smoke_test && mkdir pkg_smoke_test
+          tar xzf release_assets/*-linux-x86_64.tar.gz -C pkg_smoke_test
+          EXTRACTED=$(ls -d pkg_smoke_test/entropyforge-bip39-*-linux-*)
+          "$EXTRACTED/entropyforge-bip39" --version
+          "$EXTRACTED/entropyforge-bip39" selftest
+      - name: Renderizar notas da release
+        run: |
+          python3 tools/ci_render_release_notes.py \
+            --tag "${{ inputs.tag }}" \
+            --commit "${{ github.sha }}" \
+            --assets-dir release_assets \
+            --out RELEASE_NOTES.md
+      - name: Publicar release + assets no GitHub
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ASSET_ARGS=()
+          for f in release_assets/*; do
+            ASSET_ARGS+=(--asset "$f")
+          done
+          PRERELEASE_ARGS=()
+          if [ "${{ inputs.prerelease }}" = "true" ]; then
+            PRERELEASE_ARGS+=(--prerelease)
+          fi
+          python3 tools/ci_publish_release.py \
+            --tag "${{ inputs.tag }}" \
+            --name "EntropyForge-BIP39 ${{ inputs.tag }}" \
+            --body-file RELEASE_NOTES.md \
+            --target-commitish "${{ github.sha }}" \
+            "${ASSET_ARGS[@]}" \
+            "${PRERELEASE_ARGS[@]}"

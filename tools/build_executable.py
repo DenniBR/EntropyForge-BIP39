@@ -5,21 +5,28 @@ ferramenta (Nuitka `--standalone`, não `--onefile`) e das exclusões de
 módulo abaixo.
 
 Dependência de BUILD (nunca de runtime): o pacote `nuitka` (compila
-Python -> C -> binário usando o `gcc`/`cc` já presente no sistema) e, em
-Linux, `patchelf` (usado internamente pelo Nuitka para corrigir o RPATH
-dos `.so` copiados). Nenhuma delas é importada por `entropyforge/` em
-tempo de execução -- confirmado por `tests/test_security_ast.py`.
-Instale num ambiente de build separado: `pip install nuitka patchelf`
-(este último só necessário se `patchelf` não estiver já no PATH).
+Python -> C -> binário usando o compilador C já presente no sistema --
+`gcc`/`cc` em Linux, MSVC ou MinGW64 em Windows) e, em Linux, `patchelf`
+(usado internamente pelo Nuitka para corrigir o RPATH dos `.so`
+copiados). Nenhuma delas é importada por `entropyforge/` em tempo de
+execução -- confirmado por `tests/test_security_ast.py`. Instale num
+ambiente de build separado: `pip install nuitka patchelf` (este último
+só necessário/aplicável em Linux, se `patchelf` não estiver já no PATH).
 
 Uso:
     python3 tools/build_executable.py [--output-dir DIR]
 
-Produz `DIR/entropyforge-bip39-vX.Y.Z-linux-<arch>/`, um diretório
-autocontido (Nuitka `--standalone` não gera um único arquivo -- ver
-docs/EXECUTABLE_BUILD.md seção 1 sobre por que `--onefile` foi
-descartado: ele escreve em disco, em `/tmp`, a cada execução).
-"""
+Produz `DIR/entropyforge-bip39-vX.Y.Z-<plataforma>-<arch>/`, um
+diretório autocontido (Nuitka `--standalone` não gera um único arquivo
+-- ver docs/EXECUTABLE_BUILD.md seção 1 sobre por que `--onefile` foi
+descartado: ele escreve em disco, em `/tmp` ou no `%TEMP%`, a cada
+execução). Roda em qualquer sistema operacional suportado pelo Nuitka
+`--standalone` (testado em Linux x86_64 e Windows x86_64 -- Fase F/G;
+ver docs/EXECUTABLE_BUILD.md seção 8 para o que foi de fato verificado
+em cada plataforma). O binário final chama-se `entropyforge-bip39` em
+Linux/macOS e `entropyforge-bip39.exe` em Windows -- a única diferença
+específica de plataforma neste script; nenhuma linha de
+`entropyforge/` muda entre plataformas."""
 
 from __future__ import annotations
 
@@ -66,6 +73,14 @@ def _check_prereqs() -> None:
             "num ambiente de build separado, nunca no artefato distribuído). "
             "Ver docs/EXECUTABLE_BUILD.md."
         ) from exc
+    if platform.system() == "Windows":
+        # Nuitka no Windows detecta/usa o MSVC ja instalado (ex.: os
+        # runners `windows-latest` do GitHub Actions ja tem o Build Tools
+        # do Visual Studio) ou baixa um MinGW64 privado sozinho -- nao ha
+        # um binario fixo tipo 'gcc'/'cc' para checar aqui de antemao;
+        # se nenhum compilador estiver de fato disponivel, o proprio
+        # `python -m nuitka` abaixo falha com uma mensagem clara.
+        return
     if shutil.which("gcc") is None and shutil.which("cc") is None:
         raise ExecutableBuildError(
             "nenhum compilador C ('gcc'/'cc') encontrado no PATH; necessário "
@@ -84,9 +99,17 @@ def _target_arch() -> str:
     return platform.machine().lower().replace("amd64", "x86_64")
 
 
+def _target_platform() -> str:
+    return platform.system().lower()  # "linux", "windows", "darwin"
+
+
+def _main_binary_name() -> str:
+    return "entropyforge-bip39.exe" if platform.system() == "Windows" else "entropyforge-bip39"
+
+
 def build(output_dir: Path, *, source_root: Path = REPO_ROOT) -> Path:
     """Constrói o executável e devolve o caminho do diretório final
-    (`<output_dir>/entropyforge-bip39-vX.Y.Z-linux-<arch>/`).
+    (`<output_dir>/entropyforge-bip39-vX.Y.Z-<plataforma>-<arch>/`).
 
     `source_root` (Fase F, laboratorio de backdoor do pipeline de build --
     ver `redteam/independent/scripts/run_executable_backdoor_lab.py`): o
@@ -100,11 +123,12 @@ def build(output_dir: Path, *, source_root: Path = REPO_ROOT) -> Path:
     nao o caminho do script de entrada, que decide qual `entropyforge/' e'
     de fato compilado."""
     _check_prereqs()
-    if platform.system() != "Linux" or _target_arch() != "x86_64":
+    if (platform.system(), _target_arch()) not in (("Linux", "x86_64"), ("Windows", "x86_64")):
         print(
             f"AVISO: build não verificado nesta plataforma "
             f"({platform.system()}/{platform.machine()}) -- este projeto só "
-            "testou Linux x86_64 (ver docs/EXECUTABLE_BUILD.md seção 8).",
+            "testou Linux x86_64 e Windows x86_64 (ver docs/EXECUTABLE_BUILD.md "
+            "seção 8).",
             file=sys.stderr,
         )
 
@@ -123,6 +147,13 @@ def build(output_dir: Path, *, source_root: Path = REPO_ROOT) -> Path:
         f"--include-data-files={wordlist_path}=entropyforge/data/english.txt",
         *(f"--nofollow-import-to={m}" for m in EXCLUDED_MODULES),
         f"--output-dir={build_root}",
+        # so' no Windows: deixa o Nuitka baixar sozinho um MinGW64 privado
+        # se nenhum MSVC for detectado, em vez de travar esperando
+        # confirmacao interativa (nao existe em CI). Sem efeito em
+        # Linux/macOS (gcc/cc ja presentes, nenhum download necessario) --
+        # nunca adicionado la, para nao arriscar mudar em nada a linha de
+        # comando ja usada para provar reprodutibilidade na Fase F.
+        *(["--assume-yes-for-downloads"] if platform.system() == "Windows" else []),
         str(ENTRY_SCRIPT),
     ]
     print("rodando:", " ".join(cmd))
@@ -135,15 +166,19 @@ def build(output_dir: Path, *, source_root: Path = REPO_ROOT) -> Path:
             f"(conteúdo de {build_root}: {sorted(p.name for p in build_root.iterdir())})"
         )
 
-    main_bin = dist_dir / "executable_entry.bin"
+    # Nuitka nomeia o binario principal 'executable_entry.exe' no Windows
+    # e 'executable_entry.bin' em Linux/macOS (mesmo script de entrada,
+    # extensao dependente do SO).
+    nuitka_bin_name = "executable_entry.exe" if platform.system() == "Windows" else "executable_entry.bin"
+    main_bin = dist_dir / nuitka_bin_name
     if not main_bin.exists():
         raise ExecutableBuildError(f"binário principal esperado não encontrado: {main_bin}")
-    final_bin_name = "entropyforge-bip39"
+    final_bin_name = _main_binary_name()
     (dist_dir / final_bin_name).write_bytes(b"")  # garante que o rename abaixo nao colide
     (dist_dir / final_bin_name).unlink()
     main_bin.rename(dist_dir / final_bin_name)
 
-    final_name = f"entropyforge-bip39-v{_software_version()}-linux-{_target_arch()}"
+    final_name = f"entropyforge-bip39-v{_software_version()}-{_target_platform()}-{_target_arch()}"
     final_dir = output_dir / final_name
     if final_dir.exists():
         shutil.rmtree(final_dir)
@@ -193,7 +228,7 @@ def main() -> int:
         print(f"erro: {exc}", file=sys.stderr)
         return 1
 
-    main_bin = final_dir / "entropyforge-bip39"
+    main_bin = final_dir / _main_binary_name()
     digest = hashlib.sha256(main_bin.read_bytes()).hexdigest()
     print(f"executável construído em: {final_dir}")
     print(f"binário principal       : {main_bin}")

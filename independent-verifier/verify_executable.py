@@ -45,6 +45,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
+import build_executable  # noqa: E402 -- so a definicao (nao _check_prereqs()), sempre seguro de importar
 from verifier.hashing import build_manifest, hash_bytes, manifest_to_text  # noqa: E402
 from verifier.release_manifest import (  # noqa: E402
     ReleaseManifestError,
@@ -75,7 +76,7 @@ def verify_executable(
     skip_rebuild: bool = False,
 ) -> list[ExecutableCheck]:
     checks: list[ExecutableCheck] = []
-    main_bin = executable_dist_dir / "entropyforge-bip39"
+    main_bin = executable_dist_dir / build_executable._main_binary_name()
 
     # 1. o diretorio em maos bate com o hash que o manifesto reivindica?
     current_hash = executable_manifest_hash(executable_dist_dir)
@@ -133,8 +134,6 @@ def verify_executable(
         )
         return checks
     try:
-        import build_executable
-
         build_executable._check_prereqs()
     except Exception as exc:  # noqa: BLE001
         checks.append(
