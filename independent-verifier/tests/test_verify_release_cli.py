@@ -30,13 +30,28 @@ def _build_pyz(out_path: Path) -> None:
     build_pyz.build(out_path)
 
 
+def _fake_elf_x86_64_bytes(filler: bytes) -> bytes:
+    """Ver docstring gemea em tests/test_release_manifest.py."""
+    header = bytearray(20)
+    header[0:4] = b"\x7fELF"
+    header[4] = 2  # EI_CLASS = ELFCLASS64
+    header[5] = 1  # EI_DATA = little-endian
+    header[6] = 1  # EI_VERSION
+    header[18:20] = (0x3E).to_bytes(2, "little")  # e_machine = EM_X86_64
+    return bytes(header) + filler
+
+
 def _build_fake_executable_dist(out_dir: Path) -> Path:
     """Ver docstring gemea em tests/test_release_manifest.py -- um
     diretorio minimo, nao um executavel Nuitka de verdade, suficiente para
     exercitar o CONTRATO DE SAIDA do CLI sem pagar o custo de um build
-    real a cada execucao desta suite."""
+    real a cada execucao desta suite. Precisa de um cabecalho ELF valido
+    para que `_detect_executable_platform_arch` (usado por
+    `verify_release`) o reconheca."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "entropyforge-bip39").write_bytes(b"fake binary, so para hash deterministico")
+    (out_dir / "entropyforge-bip39").write_bytes(
+        _fake_elf_x86_64_bytes(b"fake binary, so para hash deterministico")
+    )
     return out_dir
 
 

@@ -39,12 +39,22 @@ metadados de BUILD, nunca dados de uma geracao real):
   - `executable_platform`/`executable_arch` (Fase F): `platform.system()`/
     `platform.machine()` da maquina que construiu o executavel (ex.:
     `Linux`/`x86_64`). Ver docs/PLATFORM_SUPPORT.md e docs/EXECUTABLE_BUILD.md
-    para quais combinacoes sao de fato suportadas/verificadas.
+    para quais combinacoes sao de fato suportadas/verificadas. IMPORTANTE:
+    `verify_release` NAO confere estes dois campos comparando contra o SO
+    de quem esta verificando (isso so bateria quando build e verificacao
+    rodam no mesmo SO) -- em vez disso, le o cabecalho ELF/PE dos proprios
+    bytes do binario (`_detect_executable_platform_arch`), o que funciona
+    corretamente em qualquer maquina verificadora, para qualquer
+    plataforma do artefato.
   - `executable_build_tool` (Fase F): string unica identificando a
     ferramenta de empacotamento e as versoes exatas de Python/gcc usadas
     (ex.: `nuitka-4.2.2+python-3.11.15+gcc-13.3.0`) -- requisito 4 da
     Fase F ("nao assumir que 'Python embutido' e automaticamente
-    confiavel": documentar exatamente o que foi usado).
+    confiavel": documentar exatamente o que foi usado). Este campo e
+    puramente INFORMATIVO em `verify_release`: nao ha como inspecionar o
+    binario ja compilado para extrair quais versoes exatas o produziram,
+    entao uma divergencia aqui (build numa versao de Python/gcc/Nuitka,
+    verificacao noutra) e esperada e nunca reprova o resultado geral.
 
 NUNCA inclua neste manifesto: a mnemonic, a entropia combinada, A, B, uma
 seed, ou uma passphrase. Nao ha, hoje, nenhum campo aqui que pudesse
@@ -156,6 +166,64 @@ def executable_manifest_hash(dist_dir: Path) -> str:
     docstring do modulo)."""
     entries = build_manifest(dist_dir)
     return hash_bytes(manifest_to_text(entries).encode("utf-8"))
+
+
+def _detect_executable_platform_arch(executable_dist_dir: Path) -> tuple[str, str]:
+    """Determina a plataforma/arquitetura REAIS do executavel principal
+    lendo os proprios bytes magicos do binario (cabecalho ELF ou PE), em
+    vez de perguntar ao SO de quem esta rodando a verificacao.
+
+    Bug corrigido aqui (ver docs/EXECUTABLE_BUILD.md): `verify_release`
+    comparava `executable_platform`/`executable_arch` do manifesto contra
+    `platform.system()`/`platform.machine()` recalculados na MAQUINA QUE
+    VERIFICA -- o que so pode bater, por construcao, quando build e
+    verificacao acontecem no mesmo SO. Isso faz a verificacao de um
+    executavel Windows (`.exe`) falhar sempre que rodada a partir de
+    Linux (e vice-versa), mesmo quando o artefato esta perfeitamente
+    integro -- nao e uma falha de seguranca/integridade do artefato, e um
+    defeito de desenho do proprio checador. A correcao: inspecionar o
+    binario em si (que fisicamente so pode ter um formato: ELF OU PE, nao
+    os dois), o que produz uma resposta correta em qualquer maquina
+    verificadora, para qualquer plataforma do artefato.
+
+    Os valores retornados usam exatamente a mesma convencao ja gravada
+    nos manifestos publicados (nunca normalizados): `("Linux", "x86_64")`
+    para ELF x86-64 (igual a `platform.system()`/`platform.machine()`
+    nativos do Linux), `("Windows", "AMD64")` para PE amd64 (igual a
+    `platform.machine()` nativo do Windows, que reporta "AMD64", nao
+    "x86_64") -- ver `tools/build_executable.py:_target_arch()`, que so
+    normaliza esse valor para fins de NOMEACAO de diretorio, nunca para o
+    manifesto em si.
+    """
+    main_bin = None
+    for name in ("entropyforge-bip39", "entropyforge-bip39.exe"):
+        candidate = executable_dist_dir / name
+        if candidate.is_file():
+            main_bin = candidate
+            break
+    if main_bin is None:
+        raise ReleaseManifestError(
+            f"binario principal do executavel nao encontrado em {executable_dist_dir} "
+            f"(esperado 'entropyforge-bip39' ou 'entropyforge-bip39.exe')"
+        )
+    data = main_bin.read_bytes()
+    if data[:4] == b"\x7fELF":
+        if len(data) < 20:
+            raise ReleaseManifestError(f"arquivo ELF truncado (menor que o cabecalho minimo): {main_bin}")
+        endian = "little" if data[5] == 1 else "big"
+        e_machine = int.from_bytes(data[18:20], endian)
+        arch = {0x3E: "x86_64", 0xB7: "aarch64"}.get(e_machine, f"desconhecido(0x{e_machine:x})")
+        return "Linux", arch
+    if data[:2] == b"MZ":
+        if len(data) < 0x40:
+            raise ReleaseManifestError(f"arquivo PE truncado (menor que o stub DOS): {main_bin}")
+        e_lfanew = int.from_bytes(data[0x3C:0x40], "little")
+        if len(data) < e_lfanew + 6 or data[e_lfanew : e_lfanew + 4] != b"PE\x00\x00":
+            raise ReleaseManifestError(f"assinatura PE ausente ou invalida em {main_bin}")
+        machine = int.from_bytes(data[e_lfanew + 4 : e_lfanew + 6], "little")
+        arch = {0x8664: "AMD64", 0x014C: "x86", 0xAA64: "ARM64"}.get(machine, f"desconhecido(0x{machine:x})")
+        return "Windows", arch
+    raise ReleaseManifestError(f"formato de binario desconhecido (nem ELF nem PE): {main_bin}")
 
 
 def build_tool_identifier() -> str:
@@ -270,8 +338,69 @@ def verify_release(
         build_script_path=build_script_path,
         executable_dist_dir=executable_dist_dir,
     )
+
+    # `executable_platform`/`executable_arch`/`executable_build_tool` NAO
+    # podem ser conferidos comparando contra `recomputed` (valores da
+    # maquina que esta VERIFICANDO agora) -- isso so bateria, por
+    # construcao, quando quem verifica usa o mesmo SO/versoes exatas de
+    # quem fez o build, o que nunca e garantido nem exigido (ver
+    # docs/EXECUTABLE_BUILD.md e a docstring de
+    # `_detect_executable_platform_arch`). `executable_platform`/
+    # `executable_arch` SAO verificaveis de forma independente do
+    # ambiente de quem verifica: lendo o cabecalho ELF/PE do proprio
+    # binario. `executable_build_tool` nao tem equivalente -- nao ha como
+    # extrair do binario compilado quais versoes exatas de Nuitka/Python/
+    # gcc o produziram -- entao fica como campo INFORMATIVO apenas (nunca
+    # reprova o resultado geral), permitindo transparencia sem falsos
+    # negativos entre ambientes de build/verificacao legitimamente
+    # diferentes.
+    try:
+        detected_platform, detected_arch = _detect_executable_platform_arch(executable_dist_dir)
+        detection_error: str | None = None
+    except ReleaseManifestError as exc:
+        detected_platform = detected_arch = None
+        detection_error = str(exc)
+
     for f in fields(ReleaseManifest):
         expected = getattr(manifest, f.name)
+
+        if f.name == "executable_build_tool":
+            actual = getattr(recomputed, f.name)
+            matches_this_machine = expected == actual
+            detail = (
+                "informativo apenas (nao afeta o resultado geral); "
+                + (
+                    "bate com a ferramenta/versoes da maquina que esta verificando agora"
+                    if matches_this_machine
+                    else f"manifesto={expected!r} maquina_que_verifica={actual!r} -- "
+                    "divergencia esperada e inofensiva quando build e verificacao usam "
+                    "versoes diferentes de Python/gcc/Nuitka; NAO indica adulteracao"
+                )
+            )
+            checks.append(ReleaseCheck(name=f"manifesto.{f.name}", ok=True, detail=detail))
+            continue
+
+        if f.name in ("executable_platform", "executable_arch"):
+            if detection_error is not None:
+                checks.append(
+                    ReleaseCheck(
+                        name=f"manifesto.{f.name}",
+                        ok=False,
+                        detail=f"nao foi possivel inspecionar o binario para conferir: {detection_error}",
+                    )
+                )
+                continue
+            detected = detected_platform if f.name == "executable_platform" else detected_arch
+            ok = expected == detected
+            detail = (
+                f"manifesto={expected!r} detectado_nos_bytes_do_binario={detected!r}"
+                if not ok
+                else "bate com o valor detectado nos proprios bytes (cabecalho ELF/PE) do "
+                "binario -- verificacao independente do SO/maquina de quem verifica"
+            )
+            checks.append(ReleaseCheck(name=f"manifesto.{f.name}", ok=ok, detail=detail))
+            continue
+
         actual = getattr(recomputed, f.name)
         ok = expected == actual
         detail = (

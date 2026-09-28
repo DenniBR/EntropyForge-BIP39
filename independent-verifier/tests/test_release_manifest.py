@@ -37,14 +37,34 @@ def _build_pyz(out_path: Path) -> None:
     build_pyz.build(out_path)
 
 
+def _fake_elf_x86_64_bytes(filler: bytes) -> bytes:
+    """Cabecalho ELF64/x86_64 minimo, valido o suficiente para
+    `_detect_executable_platform_arch` (le so os bytes 0-19), seguido de
+    conteudo arbitrario -- usado pelos testes RAPIDOS que precisam de um
+    "binario" reconhecivel como ELF sem pagar o custo de um build Nuitka
+    real."""
+    header = bytearray(20)
+    header[0:4] = b"\x7fELF"
+    header[4] = 2  # EI_CLASS = ELFCLASS64
+    header[5] = 1  # EI_DATA = little-endian
+    header[6] = 1  # EI_VERSION
+    header[18:20] = (0x3E).to_bytes(2, "little")  # e_machine = EM_X86_64
+    return bytes(header) + filler
+
+
 def _build_fake_executable_dist(out_dir: Path) -> Path:
     """Um diretorio MINIMO parecido com a saida de tools/build_executable.py,
     usado so pelos testes RAPIDOS desta suite (roundtrip de texto,
-    determinismo do calculo) -- nao um executavel real. Os testes que
-    precisam de um executavel Nuitka de verdade (ExecutableFieldsTests)
-    tem seu proprio skip se nuitka/gcc estiverem ausentes."""
+    determinismo do calculo) -- nao um executavel real, mas com um
+    cabecalho ELF/x86_64 valido para que
+    `_detect_executable_platform_arch` (usado por `verify_release`) o
+    reconheca corretamente. Os testes que precisam de um executavel
+    Nuitka de verdade (ExecutableFieldsTests) tem seu proprio skip se
+    nuitka/gcc estiverem ausentes."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "entropyforge-bip39").write_bytes(b"fake binary, so para hash deterministico")
+    (out_dir / "entropyforge-bip39").write_bytes(
+        _fake_elf_x86_64_bytes(b"fake binary, so para hash deterministico")
+    )
     return out_dir
 
 
