@@ -1,0 +1,18 @@
+# Normaliza terminacao de linha para LF em qualquer checkout, independente
+# do SO (Windows por padrao converteria LF->CRLF no checkout de arquivos de
+# texto) -- CRITICO para este projeto porque varios hashes (wordlist,
+# source_manifest_sha256, manifesto de release) sao calculados sobre o
+# CONTEUDO BYTE A BYTE destes arquivos, e um checkout com CRLF muda esse
+# conteudo mesmo sem alterar nenhuma linha "de verdade".
+#
+# Descoberto ao rodar o build/verificacao do executavel Windows pela
+# primeira vez num runner windows-latest real (Fase G): a wordlist embutida
+# no executavel batia um hash diferente do esperado -- exatamente a
+# assinatura de uma conversao CRLF silenciosa no checkout, nao um bug no
+# codigo. Corrigido aqui, na raiz, em vez de so no pipeline de build.
+* text=auto eol=lf
+
+# A wordlist BIP-39 e' o arquivo mais sensivel a isso -- tratada como
+# binaria (nenhuma normalizacao de qualquer tipo, byte a byte identica em
+# qualquer SO) por seguranca extra, alem da regra geral acima.
+entropyforge/data/english.txt -text
