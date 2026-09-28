@@ -19,7 +19,7 @@ def _build_pyz(out_path: Path) -> None:
     build_pyz.build(out_path)
 
 
-@unittest.skipUnless(unshare_available(), "requer o binario 'unshare' (Linux)")
+@unittest.skipUnless(unshare_available(), "requer 'unshare --net' funcionando de fato neste ambiente (binario presente E permitido pelo kernel/container)")
 class CleanArtifactSandboxTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -53,7 +53,7 @@ class CleanArtifactSandboxTests(unittest.TestCase):
         self.assertFalse(result.network_isolation_applied)
 
 
-@unittest.skipUnless(unshare_available(), "requer o binario 'unshare' (Linux)")
+@unittest.skipUnless(unshare_available(), "requer 'unshare --net' funcionando de fato neste ambiente (binario presente E permitido pelo kernel/container)")
 class NetworkIsolationIsIndependentOfGuardTests(unittest.TestCase):
     """Fase 12: a isolacao de rede do sandbox precisa funcionar mesmo para
     um processo que NAO tem nenhum codigo do EntropyForge (nenhum
@@ -102,7 +102,7 @@ class NetworkIsolationIsIndependentOfGuardTests(unittest.TestCase):
         self.assertIn("SENT_OK", result.stdout)
 
 
-@unittest.skipUnless(unshare_available(), "requer o binario 'unshare' (Linux)")
+@unittest.skipUnless(unshare_available(), "requer 'unshare --net' funcionando de fato neste ambiente (binario presente E permitido pelo kernel/container)")
 class WorkdirDiffDetectionTests(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
