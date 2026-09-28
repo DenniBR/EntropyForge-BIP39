@@ -156,6 +156,106 @@ executável) é assinado digitalmente por este projeto — ver
 custódia seria pior do que não assinar). A verificação por hash acima é,
 hoje, o mecanismo real de integridade deste projeto.
 
+## 4b. Baixando e verificando os assets da GitHub Release (v1.0.0)
+
+Desde a Fase G, você não precisa mais montar `release/` você mesmo: a
+release `v1.0.0` já está publicada, com todos os artefatos prontos para
+download, em
+**https://github.com/DenniBR/EntropyForge-BIP39/releases/tag/v1.0.0**
+(construída e publicada por `.github/workflows/release.yml`, nunca
+manualmente — ver `RELEASE-CANDIDATE.md` seção "Release publicada no
+GitHub" para o run de CI exato que a gerou).
+
+Assets publicados (13 arquivos: 6 de conteúdo + um `.sha256` para cada um
++ o `SHA256SUMS.txt` combinado):
+
+```
+entropyforge-bip39-v1.0.0-linux-x86_64.tar.gz     (+ .sha256)
+entropyforge-bip39-v1.0.0-windows-x86_64.zip      (+ .sha256)
+entropyforge.pyz                                  (+ .sha256)
+MANIFEST-linux-x86_64.txt                         (+ .sha256)
+MANIFEST-windows-x86_64.txt                       (+ .sha256)
+independent-verifier-bundle.zip                   (+ .sha256)
+SHA256SUMS.txt
+```
+
+**1. Baixe os assets** (substitua por `curl`/navegador/qualquer cliente
+HTTP; os nomes de arquivo abaixo são exatamente os publicados):
+
+```sh
+mkdir release_download && cd release_download
+BASE=https://github.com/DenniBR/EntropyForge-BIP39/releases/download/v1.0.0
+for f in SHA256SUMS.txt \
+         MANIFEST-linux-x86_64.txt MANIFEST-linux-x86_64.txt.sha256 \
+         MANIFEST-windows-x86_64.txt MANIFEST-windows-x86_64.txt.sha256 \
+         entropyforge-bip39-v1.0.0-linux-x86_64.tar.gz entropyforge-bip39-v1.0.0-linux-x86_64.tar.gz.sha256 \
+         entropyforge-bip39-v1.0.0-windows-x86_64.zip entropyforge-bip39-v1.0.0-windows-x86_64.zip.sha256 \
+         entropyforge.pyz entropyforge.pyz.sha256 \
+         independent-verifier-bundle.zip independent-verifier-bundle.zip.sha256; do
+  curl -sSL -o "$f" "$BASE/$f"
+done
+```
+
+**2. Confira os hashes** (contra o `SHA256SUMS.txt` combinado e/ou cada
+`.sha256` individual — os dois cobrem o mesmo conjunto de 6 arquivos de
+conteúdo, por redundância):
+
+```sh
+sha256sum -c SHA256SUMS.txt
+for f in *.sha256; do sha256sum -c "$f"; done
+```
+
+Saída esperada: `OK` para todos. Se qualquer arquivo não bater, **pare —
+não use este download**, baixe novamente, e se persistir, trate como uma
+adulteração em trânsito ou uma release comprometida (nunca ignore um
+`FAILED` aqui).
+
+**3. Extraia e rode a checagem rápida e a checagem forte** (a partir do
+SEU checkout git deste repositório, nunca de dentro de
+`independent-verifier-bundle.zip` — ver seção 4 sobre por que isso
+importa):
+
+```sh
+tar xzf entropyforge-bip39-v1.0.0-linux-x86_64.tar.gz
+LINUX_DIST=entropyforge-bip39-v1.0.0-linux-x86_64
+
+python3 independent-verifier/verify_release.py \
+  --manifest MANIFEST-linux-x86_64.txt \
+  --entropyforge-root /caminho/para/seu/checkout/entropyforge \
+  --pyz entropyforge.pyz \
+  --verifier-root /caminho/para/seu/checkout/independent-verifier/verifier \
+  --build-script /caminho/para/seu/checkout/tools/build_pyz.py \
+  --vectors /caminho/para/seu/checkout/tests/vectors/bip39_vectors.json \
+  --executable-dist "$LINUX_DIST" \
+  --verbose
+
+python3 independent-verifier/verify_executable.py \
+  --manifest MANIFEST-linux-x86_64.txt \
+  --entropyforge-root /caminho/para/seu/checkout/entropyforge \
+  --executable-dist "$LINUX_DIST" \
+  --verbose
+```
+
+O mesmo par de comandos funciona para o Windows, trocando
+`MANIFEST-linux-x86_64.txt`→`MANIFEST-windows-x86_64.txt` e
+`--executable-dist` para o diretório extraído de
+`entropyforge-bip39-v1.0.0-windows-x86_64.zip` — `verify_release.py`
+detecta a plataforma/arquitetura lendo o cabeçalho PE do próprio `.exe`,
+então funciona corretamente mesmo rodado a partir de Linux (você só não
+consegue EXECUTAR o `.exe` fora de um Windows/Wine, nem rodar
+`verify_executable.py` para ele sem um ambiente Windows com
+`nuitka`+MSVC/MinGW64).
+
+**Resultado esperado, honestamente reportado (não um "deveria passar"):**
+`verify_release.py` — `PASS` para os dois manifestos.
+`verify_executable.py` — as três primeiras checagens
+(`hash_vs_manifesto`/`version`/`selftest`) `PASS`; a checagem de
+reconstrução (`executavel.reconstrucao_a_partir_do_source`) pode dar
+`FAIL` se o seu ambiente de build não for byte-a-byte idêntico ao que fez
+o build original (mesmo problema documentado em
+`docs/EXECUTABLE_BUILD.md` seção 4 — não é sinal de adulteração enquanto
+as três primeiras checagens passarem).
+
 ## 5. Depois de um `PASS`
 
 1. Transfira `entropyforge.pyz` E/OU o diretório do executável (e, se

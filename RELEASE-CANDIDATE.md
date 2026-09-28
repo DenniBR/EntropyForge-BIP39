@@ -29,6 +29,127 @@ verificação e a cerimônia você mesmo).
     ver `entropyforge/version.py` e
     `independent-verifier/verifier/release_manifest.py`)
 
+## Release publicada no GitHub (v1.0.0, Fase G)
+
+**Isto substitui, para uso prático, a seção "Plataformas" abaixo (escrita
+na Fase F, antes de haver uma máquina Windows real disponível para
+build):** a release `v1.0.0` está publicada em
+**https://github.com/DenniBR/EntropyForge-BIP39/releases/tag/v1.0.0**,
+com artefatos prontos para download — não só código-fonte. Produzida
+pelo workflow `.github/workflows/release.yml` (`workflow_dispatch`),
+que roda o build do Linux num runner `ubuntu-latest` real e o build do
+**Windows num runner `windows-latest` real** do próprio GitHub Actions
+(nunca uma emulação, cross-compilação, ou arquivo renomeado) — ver
+`docs/EXECUTABLE_BUILD.md` para o raciocínio técnico da build
+multiplataforma. A execução mais recente que publicou os assets abaixo:
+run `#5`, id `36371737591`
+(https://github.com/DenniBR/EntropyForge-BIP39/actions/runs/36371737591),
+commit `f929c5eef8d534be9c72463c9f60030f473b40f2` — todos os 4 jobs
+(`test`, `build-linux`, `build-windows`, `publish`) com `conclusion:
+success`, incluindo a checagem FORTE `verify-executable` (reconstrução a
+partir do source) passando genuinamente nos dois jobs de build nesta
+execução (não mascarada por `continue-on-error` — ver nota abaixo sobre
+por que esse passo específico não é o gate bloqueante da CI).
+
+### Assets publicados (nome exato · SHA-256)
+
+```
+entropyforge-bip39-v1.0.0-linux-x86_64.tar.gz    bdeb8cfc78c632449d91b97f4cc55d1ffae156b830fbefea7b8348d2dbe1e9cc
+entropyforge-bip39-v1.0.0-windows-x86_64.zip     6ec0ff11be48e5ec2a32a4dd5cc371c447e15b4a10d0b8c49610426ebfbe3fb6
+entropyforge.pyz                                 a09b5662f1d16f4b92d5e07b84e8e90343b0f027cfb94b500a1e2bdf9876aa0d
+MANIFEST-linux-x86_64.txt                        8d41cf96208d197adcabd78e12b133e1deb60eccd0fbad8ff9c1a716461dca23
+MANIFEST-windows-x86_64.txt                      ec26a3af83d51b72a220ccb1d3377144a9dbe015917a5ae44959c1d31942189d
+independent-verifier-bundle.zip                  5ce10e5e4ef454656e810b3c8eff069fbcdc61fd7e8c858e0dce9c216f2e6941
+SHA256SUMS.txt                                   58b0344b40d9ce3bd352664d116a45eb4c346b1e130c7fca1635f4870490e89f
+```
+
+Cada um dos seis arquivos de conteúdo acima também tem um `<nome>.sha256`
+individual publicado ao lado (11 assets no total, mais o
+`SHA256SUMS.txt` combinado = 13 assets — confira a lista completa e os
+hashes você mesmo na página da release, nunca só neste documento). Todos
+os hashes acima são os que `tools/ci_publish_release.py` imprimiu ao
+final da run `#5` e foram reconferidos, nesta revisão, baixando os
+arquivos de verdade da própria URL pública da release (não só arquivos
+locais de build) — ver `docs/VERIFY.md` seção 6 para os comandos exatos.
+
+### O que cada verificação realmente mostrou (assets baixados da Release, run #5)
+
+- `sha256sum -c SHA256SUMS.txt` e cada `.sha256` individual: **OK** para
+  os 6 arquivos de conteúdo.
+- Binário Linux extraído do `.tar.gz` baixado: `--version`, `selftest`
+  (`RESULTADO GERAL: PASSOU`) e `vector` com o vetor de teste público
+  (`--a-digits 111111111111111111111111 --b-hex 000...0`) produziram a
+  mesma mnemonic de sempre nesta série de builds — execução real do
+  binário publicado, não de uma cópia local.
+- `independent-verifier/verify_release.py` contra o `MANIFEST-linux-x86_64.txt`
+  e o `entropyforge.pyz` baixados: **PASS** em todos os 14 campos do
+  manifesto + wordlist + `.pyz` vs. source + vetores BIP-39 oficiais.
+- `independent-verifier/verify_release.py` contra o
+  `MANIFEST-windows-x86_64.txt` baixado e o diretório do `.exe` extraído
+  do `.zip` baixado, **rodado a partir desta máquina Linux**: **PASS** —
+  incluindo `executable_platform`/`executable_arch`, que agora são
+  conferidos lendo o cabeçalho PE dos próprios bytes do `.exe` (`MZ` +
+  assinatura `PE\0\0` + `Machine=0x8664`/AMD64), não perguntando ao SO de
+  quem verifica (ver "Bug corrigido nesta revisão" abaixo — antes desta
+  correção, verificar um asset Windows a partir de Linux falhava sempre,
+  por desenho, mesmo com o artefato íntegro).
+- `independent-verifier/verify_executable.py` (checagem FORTE,
+  reconstrução do zero) contra o Linux baixado, rodado NESTA máquina
+  (diferente da máquina `ubuntu-latest` que fez o build original):
+  `hash_vs_manifesto`/`version`/`selftest` **PASS**;
+  `reconstrucao_a_partir_do_source` **FAIL** — a mesma
+  não-determinística dependente de `--output-dir` já documentada em
+  `docs/EXECUTABLE_BUILD.md` seção 4 (reconstruir num diretório diferente
+  do build original produz um hash de diretório diferente numa unidade de
+  compilação do Nuitka). **Isto não é uma falha de integridade do
+  artefato** — os três primeiros checks da mesma chamada, que SÃO checks
+  de integridade, passaram; é uma limitação conhecida e documentada da
+  reprodutibilidade bit-a-bit do Nuitka entre diretórios de build
+  diferentes, não uma evidência de adulteração.
+- Windows `.exe` extraído do `.zip` baixado: SHA-256 confere com
+  `MANIFEST-windows-x86_64.txt`; PE32+/`AMD64` genuíno (cabeçalho `MZ`/`PE\0\0`
+  conferido byte a byte); importa somente `python311.dll`, `KERNEL32.dll`,
+  `VCRUNTIME140.dll` e os forwarders padrão do Universal CRT
+  (`api-ms-win-crt-*.dll`) — nenhuma DLL de rede (`ws2_32`, `wininet`,
+  `winhttp`); layout de seções padrão de um build Nuitka não empacotado
+  (sem seções de packer tipo UPX); varredura de strings em TODOS os
+  arquivos do pacote (`.exe` + `.dll` + `.pyd`) por assinaturas de
+  mineração (`XMRig`, `CryptoNote`, `Monero`, `Stratum`, `mining pool`,
+  `RandomX`, `NiceHash`, `CoinHive`, `hashrate`, `xmr-stak`, `cpuminer`):
+  **zero ocorrências reais** — a única string "STRATUM" encontrada está
+  em `unicodedata.pyd` (runtime padrão do CPython) e é um fragmento
+  alfabético da tabela de nomes de caracteres Unicode
+  (`STREAMER`/`STRAWBERRY`/`STRAW`/`STRATUM-2`/`STRATUM`/`STRATU`/`STRATIA`
+  aparecem em sequência alfabética), não uma referência ao protocolo
+  Stratum de mineração. **Limitação declarada:** o `.exe` não pôde ser
+  EXECUTADO nesta sessão (ambiente Linux, sem Wine) — só inspecionado
+  estaticamente; e não há acesso a uma API do VirusTotal configurada
+  neste ambiente para rodar uma varredura multi-engine real contra o hash
+  exato acima.
+- Suítes locais completas re-executadas após todas as mudanças desta
+  revisão: `tests/` — 257 testes, `OK`; `independent-verifier/tests/` —
+  129 testes, `OK`.
+
+### Bug corrigido nesta revisão (verificação cross-plataforma)
+
+`verify_release()` comparava `executable_platform`/`executable_arch` do
+manifesto contra `platform.system()`/`platform.machine()` da **máquina
+que está verificando**, não do artefato — o que só podia bater quando
+build e verificação rodam no mesmo SO, tornando impossível verificar
+honestamente um `.exe` do Windows a partir de Linux (ou vice-versa),
+mesmo com o artefato perfeitamente íntegro (o `executable_sha256`, que já
+é uma função pura dos bytes do arquivo, sempre bateu). Corrigido lendo o
+cabeçalho ELF/PE dos próprios bytes do executável
+(`_detect_executable_platform_arch` em
+`independent-verifier/verifier/release_manifest.py`), o que funciona
+corretamente em qualquer máquina verificadora. `executable_build_tool`
+(que não tem como ser extraído do binário já compilado) passou a ser
+puramente informativo — mostrado no relatório, mas nunca reprova o
+resultado geral. Isto corrige um defeito de desenho, não afrouxa nenhuma
+checagem de segurança/integridade — a versão corrigida do verificador foi
+reconstruída e republicada dentro desta mesma release (`v1.0.0`, run #5),
+então `independent-verifier-bundle.zip` já contém a correção.
+
 ## O que mudou nesta fase (Fase F)
 
 A Fase E entregou um artefato distribuível (`entropyforge.pyz`) que exige
@@ -62,14 +183,18 @@ hardcoded, sempre lidos do ambiente real (`build_tool_identifier()` em
 
 - **Linux x86_64**: **produzido e testado** para os dois artefatos
   (`.pyz` e executável).
-- **Windows x86_64 (executável)**: **NÃO produzido nesta fase.** Nem
-  PyInstaller nem Nuitka fazem cross-compilação de Linux para Windows;
-  este ambiente de build não tem uma máquina Windows disponível;
-  alternativas via Wine foram avaliadas e rejeitadas por não atenderem à
-  barra de "tecnicamente segura e reprodutível" exigida para qualquer
-  artefato distribuído. O `.pyz`/source continuam avaliados (não
-  recomendados para uso real, ver `docs/PLATFORM_SUPPORT.md`) e
-  funcionais em Windows com Python instalado.
+- **Windows x86_64 (executável)**: **histórico da Fase F, já superado —
+  ver a seção "Release publicada no GitHub" acima.** Na Fase F, nenhuma
+  máquina Windows estava disponível neste ambiente de desenvolvimento
+  (nem PyInstaller nem Nuitka fazem cross-compilação de Linux para
+  Windows, e alternativas via Wine foram avaliadas e rejeitadas por não
+  atenderem à barra de "tecnicamente segura e reprodutível"). Isso foi
+  resolvido na Fase G usando um runner `windows-latest` REAL do próprio
+  GitHub Actions (`.github/workflows/release.yml`, job `build-windows`) —
+  o `.exe` publicado em `v1.0.0` é um build Windows genuíno, construído e
+  testado (smoke test, `selftest`, `verify-release`, `verify-executable`)
+  numa máquina Windows de verdade, nunca um placeholder ou arquivo
+  renomeado.
 - **Windows XP**: explicitamente **NÃO SUPORTADA**, para ambos os
   artefatos — nenhuma versão do CPython exigida por este projeto (≥
   3.11) roda nela.
@@ -272,10 +397,25 @@ ver `docs/FINAL_SECURITY_REVIEW.md` seção 17 (inalterado nesta fase).
   reconstruí-lo e comparar hashes (`verify_executable.py`), o que exige
   `nuitka`+`gcc` no ambiente de verificação. Reprodutibilidade do
   executável entre versões diferentes de Python/gcc/Nuitka não foi
-  testada (só uma cadeia de ferramentas estava disponível). Nenhum
-  executável Windows foi produzido. Nenhum dos dois artefatos é assinado
-  digitalmente (avaliado, documentado como etapa externa/manual — ver
-  `docs/EXECUTABLE_RELEASE_CHECKS.md` seção 6).
+  testada (só uma cadeia de ferramentas estava disponível nesta fase).
+  Nenhum dos dois artefatos é assinado digitalmente (avaliado, documentado
+  como etapa externa/manual — ver `docs/EXECUTABLE_RELEASE_CHECKS.md`
+  seção 6).
+- **Fase G (release publicada, ver seção acima):** um executável Windows
+  x86_64 real FOI produzido, num runner `windows-latest` do GitHub
+  Actions. A checagem FORTE de reconstrução (`verify_executable.py`)
+  passou genuinamente na própria CI que fez o build, mas é conhecida por
+  divergir quando reconstruída num diretório diferente do build original
+  (não-determinismo do Nuitka dependente de `--output-dir`, evidenciado
+  com o log do `clcache` — ver `docs/EXECUTABLE_BUILD.md` seção 4); por
+  isso esse passo específico roda com `continue-on-error: true` na CI
+  (nunca escondido — o resultado aparece normalmente no log) e o gate
+  real da CI é `verify-release` (hash do diretório já construído contra o
+  manifesto, sem reconstruir). O Windows `.exe` publicado foi
+  inspecionado estaticamente (PE/imports/seções/strings) mas não pôde ser
+  executado nesta sessão (sem ambiente Windows/Wine), e não há acesso a
+  uma API do VirusTotal configurada neste ambiente para uma varredura
+  multi-engine real.
 - Este documento, e todo este projeto, **nunca afirma** que a seed
   gerada é "segura", "inquebrável", "impossível de quebrar",
   "impossível para computador quântico" ou "impossível para governo" —
